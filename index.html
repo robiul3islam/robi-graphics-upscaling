@@ -1322,57 +1322,39 @@
 <div class="toast" id="toast"><span class="ti">✅</span><span id="toastMsg">Done!</span></div>
 
 <script>
-// ════════════════════════════════════════════════════════════════
-// ===== ACCESS CONTROL SYSTEM =====
-// ════════════════════════════════════════════════════════════════
-// IMPORTANT: Change this secret before deploying! This is what makes
-// ════════════════════════════════════════════════════════════════
-// ===== ACCESS CONTROL — GitHub Gist-based (cross-device) =====
-// কীভাবে কাজ করে:
-//   ১. Admin একটি GitHub Gist-এ codes store করেন (JSON)
-//   ২. User code দিলে → Gist থেকে fetch করে validate করা হয়
-//   ৩. নতুন code বানালে → সরাসরি Gist আপডেট হয়
-//   ৪. যেকোনো device থেকে একই codes কাজ করে — HTML আপলোড লাগে না
-// ════════════════════════════════════════════════════════════════
-
-// Admin password check
-// simple constants — no async needed
+// ===== ACCESS CONTROL =====
 const ADMIN_PASS = '5877162026';
+const HARDCODED_GIST_ID = '4d5dbd5f3322e6c4194681d46665c625';
+const GIST_FILENAME = 'robi-graphics-codes.json';
 
-// ── Hardcoded Gist ID (embedded by admin for cross-device use) ───
-// Admin: Gist setup করার পর এই ID টা এখানে লিখুন (একবারই করতে হবে)
-const HARDCODED_GIST_ID = '4d5dbd5f3322e6c4194681d46665c625'; // ← আপনার Gist ID
+// ── Master code ──
+function simpleHash(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) { h = ((h << 5) + h) + str.charCodeAt(i); h = h & h; }
+  return Math.abs(h);
+}
+function computeMasterCode() {
+  const raw = 'robi-graphics-2026-secret-key-change-me::master-owner-robi';
+  const h = simpleHash(raw);
+  const s = h.toString(36).toUpperCase().padStart(8,'0').slice(0,8);
+  return s.slice(0,4) + '-' + s.slice(4,8);
+}
 
-// ── Gist config (saved in localStorage) ──────────────────────────
+// ── Gist config ──
 function getGistConfig() {
-  try { return JSON.parse(localStorage.getItem('robig_gist_config') || 'null'); }
-  catch { return null; }
+  try { return JSON.parse(localStorage.getItem('robig_gist_config') || 'null'); } catch { return null; }
 }
 function saveGistConfig_local(cfg) {
   localStorage.setItem('robig_gist_config', JSON.stringify(cfg));
 }
 
-// ── Gist API helpers ─────────────────────────────────────────────
-const GIST_FILENAME = 'robi-graphics-codes.json';
-
+// ── Gist API ──
 async function gistFetch(method, gistId, token, body) {
-  const url = gistId
-    ? `https://api.github.com/gists/${gistId}`
-    : 'https://api.github.com/gists';
-  const opts = {
-    method,
-    headers: {
-      'Authorization': `token ${token}`,
-      'Accept': 'application/vnd.github+json',
-      'Content-Type': 'application/json'
-    }
-  };
+  const url = gistId ? 'https://api.github.com/gists/' + gistId : 'https://api.github.com/gists';
+  const opts = { method, headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' } };
   if (body) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `HTTP ${res.status}`);
-  }
+  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || 'HTTP ' + res.status); }
   return res.json();
 }
 
@@ -1392,176 +1374,123 @@ async function writeGistCodes(cfg, codes) {
   if (cfg.gistId) {
     await gistFetch('PATCH', cfg.gistId, cfg.token, body);
   } else {
-    // Create new Gist
-    body.description = 'ROBI Graphics — Access Codes (do not delete)';
-    body.public = false;
+    body.description = 'ROBI Graphics — Access Codes';
+    body.public = true;
     const res = await gistFetch('POST', null, cfg.token, body);
     cfg.gistId = res.id;
     saveGistConfig_local(cfg);
-    return cfg;
   }
 }
 
-// ── Public Gist read (no token needed — for user validation) ──────
-// Users validate against a cached copy in localStorage (refreshed on each admin write)
-// so validation is instant and works offline after first use.
+// ── Cache ──
 function getCachedCodes() {
-  try { return JSON.parse(localStorage.getItem('robig_codes_cache') || 'null'); }
-  catch { return null; }
+  try { return JSON.parse(localStorage.getItem('robig_codes_cache') || 'null'); } catch { return null; }
 }
 function setCachedCodes(codes) {
   localStorage.setItem('robig_codes_cache', JSON.stringify(codes));
-  localStorage.setItem('robig_codes_cache_time', Date.now().toString());
 }
-
-// Cache TTL: 10 minutes — after that, try to re-fetch on next access check
-const CACHE_TTL_MS = 10 * 60 * 1000;
 
 async function fetchAndCacheCodes() {
   const cfg = getGistConfig();
-  // Admin device: use token for authenticated fetch
   if (cfg?.gistId && cfg?.token) {
     const codes = await readGistCodes(cfg);
     if (codes !== null) { setCachedCodes(codes); return codes; }
   }
-  // Other devices: try public fetch using stored gistId (no token needed)
-  const storedGistId = cfg?.gistId || localStorage.getItem('robig_public_gist_id') || HARDCODED_GIST_ID;
-  if (storedGistId) {
+  const gistId = cfg?.gistId || localStorage.getItem('robig_public_gist_id') || HARDCODED_GIST_ID;
+  if (gistId) {
     try {
-      const res = await fetch(`https://api.github.com/gists/${storedGistId}`, {
-        headers: { 'Accept': 'application/vnd.github+json' }
-      });
+      const res = await fetch('https://api.github.com/gists/' + gistId, { headers: { 'Accept': 'application/vnd.github+json' } });
       if (res.ok) {
         const gist = await res.json();
-        const raw = gist.files?.['robi-graphics-codes.json']?.content;
-        if (raw) {
-          const codes = JSON.parse(raw);
-          setCachedCodes(codes);
-          return codes;
-        }
+        const raw = gist.files?.[GIST_FILENAME]?.content;
+        if (raw) { const codes = JSON.parse(raw); setCachedCodes(codes); return codes; }
       }
     } catch(e) {}
   }
   return getCachedCodes() || [];
 }
 
-// ── Validation ────────────────────────────────────────────────────
-// Master code — always works (owner backup access), computed deterministically
-function simpleHash(str) {
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) { h = ((h << 5) + h) + str.charCodeAt(i); h = h & h; }
-  return Math.abs(h);
-}
-function computeMasterCode() {
-  const raw = 'robi-graphics-2026-secret-key-change-me::master-owner-robi';
-  const h = simpleHash(raw);
-  const s = h.toString(36).toUpperCase().padStart(8,'0').slice(0,8);
-  return `${s.slice(0,4)}-${s.slice(4,8)}`;
-}
-
+// ── Validation ──
 async function isValidAccessCode(code) {
   const entered = code.trim().toUpperCase().replace(/\s/g,'');
   if (!entered) return false;
-  // 1. Master code
   if (entered === computeMasterCode()) return true;
-  // 2. Check cached/gist codes
-  const codes = getCachedCodes();
-  if (codes && codes.some(c => c.code === entered && c.active !== false)) return true;
-  // 3. Re-fetch from Gist (cache may be stale)
+  const cached = getCachedCodes();
+  if (cached && cached.some(c => c.code === entered && c.active !== false)) return true;
   const fresh = await fetchAndCacheCodes();
   return fresh.some(c => c.code === entered && c.active !== false);
 }
 
-// ── Access Gate UI ────────────────────────────────────────────────
+// ── Access Gate ──
 async function tryAccessCode() {
   const input = document.getElementById('accessCodeInput');
   const errEl = document.getElementById('accessGateError');
   const loadEl = document.getElementById('gateLoadingState');
-  const inpEl  = document.getElementById('gateInputState');
+  const inpEl = document.getElementById('gateInputState');
   const code = input.value.trim();
   if (!code) return;
-
   errEl.style.display = 'none';
   loadEl.style.display = 'block';
   inpEl.style.opacity = '0.5';
   inpEl.style.pointerEvents = 'none';
-
   try {
     const valid = await isValidAccessCode(code);
     if (valid) {
-      // Mark as used in Gist (best-effort, don't block unlock)
-      markCodeAsUsedInGist(code.toUpperCase()).catch(() => {});
+      fetchAndCacheCodes().then(codes => {
+        const cfg = getGistConfig();
+        const entry = codes.find(c => c.code === code.toUpperCase());
+        if (entry && cfg?.gistId) {
+          entry.used = true; entry.useCount = (entry.useCount||0)+1; entry.lastUsed = new Date().toISOString();
+          writeGistCodes(cfg, codes).then(()=>setCachedCodes(codes)).catch(()=>{});
+        }
+      }).catch(()=>{});
       localStorage.setItem('robig_unlocked', 'true');
       localStorage.setItem('robig_unlock_code', code.toUpperCase());
-      localStorage.setItem('robig_unlock_time', new Date().toISOString());
       document.getElementById('accessGateOverlay').style.display = 'none';
       document.body.style.overflow = '';
     } else {
       loadEl.style.display = 'none';
       inpEl.style.opacity = '';
       inpEl.style.pointerEvents = '';
-      errEl.textContent = '❌ ভুল কোড। আবার চেষ্টা করুন অথবা Owner-এর সাথে যোগাযোগ করুন।';
+      errEl.textContent = '❌ ভুল কোড। আবার চেষ্টা করুন।';
       errEl.style.display = 'block';
       input.style.borderColor = 'var(--red)';
-      setTimeout(() => { input.style.borderColor = ''; }, 1500);
+      setTimeout(()=>{ input.style.borderColor=''; }, 1500);
     }
   } catch(e) {
     loadEl.style.display = 'none';
     inpEl.style.opacity = '';
     inpEl.style.pointerEvents = '';
-    errEl.textContent = '⚠️ Network error — cached codes দিয়ে চেষ্টা হচ্ছে…';
+    errEl.textContent = '⚠️ Network error — আবার চেষ্টা করুন।';
     errEl.style.display = 'block';
   }
 }
 
-async function markCodeAsUsedInGist(code) {
-  const cfg = getGistConfig();
-  if (!cfg?.gistId || !cfg?.token) return;
-  const codes = await readGistCodes(cfg);
-  if (!codes) return;
-  const entry = codes.find(c => c.code === code);
-  if (entry) {
-    entry.used = true;
-    entry.useCount = (entry.useCount || 0) + 1;
-    entry.lastUsed = new Date().toISOString();
-    await writeGistCodes(cfg, codes);
-    setCachedCodes(codes);
-  }
-}
-
-const APP_VERSION = 'v20-gist-1'; // ← এই version বদলালে সবার পুরনো session reset হবে
-
-async function checkAccessGate() {
+function checkAccessGate() {
   const overlay = document.getElementById('accessGateOverlay');
-
-  // Version check — নতুন version deploy হলে পুরনো unlock session clear করো
-  const savedVersion = localStorage.getItem('robig_app_version');
-  if (savedVersion !== APP_VERSION) {
-    localStorage.removeItem('robig_unlocked');
-    localStorage.removeItem('robig_unlock_code');
-    localStorage.removeItem('robig_unlock_time');
-    localStorage.setItem('robig_app_version', APP_VERSION);
+  fetchAndCacheCodes().catch(()=>{});
+  // Admin session থাকলে সবসময় access
+  if (isAdminSession()) {
+    localStorage.setItem('robig_unlocked', 'true');
+    overlay.style.display = 'none';
+    document.body.style.overflow = '';
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+    return;
   }
-
-  // Pre-fetch codes in background to warm cache
-  fetchAndCacheCodes().catch(() => {});
-
   const unlocked = localStorage.getItem('robig_unlocked') === 'true';
   if (unlocked) {
     overlay.style.display = 'none';
-    if (isAdminSession()) document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
   } else {
     overlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
 }
 
-// ── Admin Login ───────────────────────────────────────────────────
+// ── Admin Login ──
 function tryAdminLogin() {
   const pwd = document.getElementById('adminPasswordInput').value.trim();
   const errEl = document.getElementById('adminLoginError');
   errEl.style.display = 'none';
-
   if (pwd === ADMIN_PASS) {
     document.getElementById('adminLoginPrompt').style.display = 'none';
     document.getElementById('adminPasswordInput').value = '';
@@ -1571,7 +1500,7 @@ function tryAdminLogin() {
     document.getElementById('accessGateOverlay').style.display = 'none';
     document.body.style.overflow = '';
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
-    showToast('🛡️ Admin হিসেবে লগইন হয়েছে!');
+    showToast('🛡️ Admin লগইন হয়েছে!');
     openAdminPanel();
   } else {
     errEl.textContent = '❌ ভুল password।';
@@ -1585,12 +1514,14 @@ function isAdminSession() {
 
 function adminLogout() {
   localStorage.removeItem('robig_admin_session');
+  localStorage.removeItem('robig_unlocked');
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
   document.getElementById('adminPanelModalBg').classList.remove('show');
   showToast('🚪 Admin logout হয়েছে');
+  checkAccessGate();
 }
 
-// ── Gist Setup Modal ──────────────────────────────────────────────
+// ── Gist Setup ──
 function openGistSetup() {
   const cfg = getGistConfig();
   if (cfg?.token) document.getElementById('gistTokenInput').value = cfg.token;
@@ -1603,98 +1534,69 @@ function openGistSetup() {
 async function saveGistConfig() {
   const token = document.getElementById('gistTokenInput').value.trim();
   const gistId = document.getElementById('gistIdInput').value.trim();
-  const errEl  = document.getElementById('gistSetupError');
-  const okEl   = document.getElementById('gistSetupSuccess');
-  const btn    = document.getElementById('gistSetupSaveBtn');
-  errEl.style.display = 'none';
-  okEl.style.display = 'none';
-
+  const errEl = document.getElementById('gistSetupError');
+  const okEl = document.getElementById('gistSetupSuccess');
+  const btn = document.getElementById('gistSetupSaveBtn');
+  errEl.style.display = 'none'; okEl.style.display = 'none';
   if (!token) { errEl.textContent = '❌ Token দিন।'; errEl.style.display='block'; return; }
-
   btn.disabled = true; btn.textContent = '⏳ Connecting…';
-
   try {
+    const userRes = await fetch('https://api.github.com/user', { headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' } });
+    if (!userRes.ok) throw new Error('Invalid token');
     let cfg = { token, gistId: gistId || null };
-    // Test token with a GET /user call
-    const userRes = await fetch('https://api.github.com/user', {
-      headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github+json' }
-    });
-    if (!userRes.ok) throw new Error('Invalid token — GitHub rejected it');
-
     if (!cfg.gistId) {
-      // Create new Gist with empty codes list
-      showToast('⏳ নতুন Gist তৈরি হচ্ছে…');
-      const body = {
-        description: 'ROBI Graphics — Access Codes (do not delete)',
-        public: false,
-        files: { [GIST_FILENAME]: { content: JSON.stringify([], null, 2) } }
-      };
+      const body = { description: 'ROBI Graphics — Access Codes', public: true, files: { [GIST_FILENAME]: { content: '[]' } } };
       const res = await gistFetch('POST', null, token, body);
       cfg.gistId = res.id;
     } else {
-      // Verify Gist is accessible
       await gistFetch('GET', cfg.gistId, token);
     }
-
     saveGistConfig_local(cfg);
-    // Store public gistId so other devices can fetch without token
     localStorage.setItem('robig_public_gist_id', cfg.gistId);
-    // Sync codes from Gist into cache
     const codes = await readGistCodes(cfg);
     if (codes) setCachedCodes(codes);
-
-    okEl.textContent = `✅ Connected! Gist ID: ${cfg.gistId}`;
+    okEl.textContent = '✅ Connected! Gist ID: ' + cfg.gistId;
     okEl.style.display = 'block';
     btn.disabled = false; btn.textContent = '✅ Save & Connect';
     showToast('✅ GitHub Gist connected!');
-    setTimeout(() => {
-      document.getElementById('gistSetupModalBg').classList.remove('show');
-      updateGistStatusUI();
-      syncFromGist(false);
-    }, 1500);
+    setTimeout(() => { document.getElementById('gistSetupModalBg').classList.remove('show'); updateGistStatusUI(); syncFromGist(false); }, 1500);
   } catch(e) {
-    errEl.textContent = `❌ Error: ${e.message}`;
+    errEl.textContent = '❌ Error: ' + e.message;
     errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = '✅ Save & Connect';
   }
 }
 
-// ── Admin Panel ───────────────────────────────────────────────────
+// ── Admin Panel ──
 function updateGistStatusUI() {
   const cfg = getGistConfig();
-  const badge  = document.getElementById('gistStatusBadge');
+  const badge = document.getElementById('gistStatusBadge');
   const connBar = document.getElementById('gistConnectedBar');
-  const noBar   = document.getElementById('gistNotConnectedBar');
-  const connId  = document.getElementById('gistConnectedId');
+  const noBar = document.getElementById('gistNotConnectedBar');
+  const connId = document.getElementById('gistConnectedId');
   if (cfg?.gistId) {
-    badge.style.background  = 'rgba(0,255,136,0.1)';
-    badge.style.color       = 'var(--green)';
-    badge.style.borderColor = 'rgba(0,255,136,0.3)';
-    badge.textContent       = '✅ Gist Connected';
-    connBar.style.display   = 'flex';
-    noBar.style.display     = 'none';
-    connId.textContent      = `gist.github.com/${cfg.gistId}`;
+    if (badge) { badge.style.background='rgba(0,255,136,0.1)'; badge.style.color='var(--green)'; badge.style.borderColor='rgba(0,255,136,0.3)'; badge.textContent='✅ Gist Connected'; }
+    if (connBar) connBar.style.display='flex';
+    if (noBar) noBar.style.display='none';
+    if (connId) connId.textContent='gist.github.com/' + cfg.gistId;
   } else {
-    badge.style.background  = 'rgba(255,107,0,0.12)';
-    badge.style.color       = 'var(--accent2)';
-    badge.style.borderColor = 'rgba(255,107,0,0.3)';
-    badge.textContent       = '⚠️ Not Connected';
-    connBar.style.display   = 'none';
-    noBar.style.display     = 'flex';
+    if (badge) { badge.style.background='rgba(255,107,0,0.12)'; badge.style.color='var(--accent2)'; badge.style.borderColor='rgba(255,107,0,0.3)'; badge.textContent='⚠️ Not Connected'; }
+    if (connBar) connBar.style.display='none';
+    if (noBar) noBar.style.display='flex';
   }
 }
 
-async function syncFromGist(showMsg = true) {
+async function syncFromGist(showMsg=true) {
   const btn = document.getElementById('syncBtn');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+  if (btn) { btn.disabled=true; btn.textContent='⏳ Syncing…'; }
   try {
     const codes = await fetchAndCacheCodes();
     renderAdminCodesList(codes);
-    if (showMsg) showToast(`✅ Sync হয়েছে — ${codes.length}টি code`);
+    if (showMsg) showToast('✅ Sync হয়েছে — ' + codes.length + 'টি code');
   } catch(e) {
     if (showMsg) showToast('❌ Sync error: ' + e.message);
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync'; }
+    if (btn) { btn.disabled=false; btn.textContent='🔄 Sync'; }
   }
 }
 
@@ -1703,7 +1605,6 @@ async function openAdminPanel() {
   const codes = getCachedCodes() || [];
   renderAdminCodesList(codes);
   document.getElementById('adminPanelModalBg').classList.add('show');
-  // Refresh from Gist in background
   syncFromGist(false);
 }
 
@@ -1712,43 +1613,20 @@ async function generateNewAccessCode() {
   const btn = document.getElementById('genCodeBtn');
   let label = labelInput.value.trim();
   if (!label) { showToast('⚠️ User নাম দিন'); return; }
-
-  // Generate a random short code (6 chars) — no deterministic hash needed anymore
   const code = (Math.random().toString(36).slice(2,5) + Math.random().toString(36).slice(2,5)).toUpperCase();
-  const formatted = `${code.slice(0,4)}-${code.slice(4,6)}`;
-
+  const formatted = code.slice(0,4) + '-' + code.slice(4,6);
   const cfg = getGistConfig();
   let codes = getCachedCodes() || [];
-
-  const newEntry = {
-    label,
-    code: formatted,
-    createdAt: new Date().toISOString(),
-    active: true,
-    used: false,
-    useCount: 0
-  };
+  const newEntry = { label, code: formatted, createdAt: new Date().toISOString(), active: true, used: false, useCount: 0 };
   codes.push(newEntry);
-
-  btn.disabled = true; btn.textContent = '⏳ Saving…';
+  btn.disabled=true; btn.textContent='⏳ Saving…';
   try {
-    if (cfg?.gistId) {
-      await writeGistCodes(cfg, codes);
-      setCachedCodes(codes);
-      showToast(`✅ Code তৈরি ও Gist-এ save হয়েছে: ${formatted}`);
-    } else {
-      // No Gist configured — save only to local cache with warning
-      setCachedCodes(codes);
-      showToast(`✅ Code তৈরি হয়েছে: ${formatted} ⚠️ Gist setup করুন cross-device-এর জন্য`);
-    }
+    if (cfg?.gistId) { await writeGistCodes(cfg, codes); setCachedCodes(codes); showToast('✅ Code তৈরি: ' + formatted); }
+    else { setCachedCodes(codes); showToast('✅ Code তৈরি: ' + formatted + ' ⚠️ Gist setup করুন'); }
     labelInput.value = '';
     renderAdminCodesList(codes);
-  } catch(e) {
-    codes.pop(); // rollback
-    showToast('❌ Gist save error: ' + e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = '+ Generate';
-  }
+  } catch(e) { codes.pop(); showToast('❌ Error: ' + e.message); }
+  finally { btn.disabled=false; btn.textContent='+ Generate'; }
 }
 
 function escapeHtmlAdmin(s) {
@@ -1759,80 +1637,53 @@ function renderAdminCodesList(codes) {
   if (!codes) codes = getCachedCodes() || [];
   const container = document.getElementById('adminCodesList');
   const total = codes.length;
-  const used  = codes.filter(c => c.used).length;
-  document.getElementById('adminTotalCodesCount').textContent  = total;
-  document.getElementById('adminUsedCodesCount').textContent   = used;
+  const used = codes.filter(c=>c.used).length;
+  document.getElementById('adminTotalCodesCount').textContent = total;
+  document.getElementById('adminUsedCodesCount').textContent = used;
   document.getElementById('adminUnusedCodesCount').textContent = total - used;
-
-  if (total === 0) {
-    container.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">এখনো কোনো code তৈরি হয়নি</p>`;
-    return;
-  }
-
+  if (total === 0) { container.innerHTML='<p style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">এখনো কোনো code তৈরি হয়নি</p>'; return; }
   container.innerHTML = codes.slice().reverse().map(c => `
-    <div style="display:flex;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);gap:10px;" id="code-row-${c.code}">
+    <div style="display:flex;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);gap:10px;">
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;font-weight:600;color:${c.active===false?'var(--muted)':'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtmlAdmin(c.label)}</div>
-        <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;">${c.used?`✅ Used (${c.useCount||1}x · ${c.lastUsed?new Date(c.lastUsed).toLocaleDateString('bn-BD'):''})`:'⏳ Not used'} · Created ${new Date(c.createdAt).toLocaleDateString('bn-BD')}</div>
+        <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;">${c.used?'✅ Used ('+c.useCount+'x)':'⏳ Not used'} · ${new Date(c.createdAt).toLocaleDateString('bn-BD')}</div>
       </div>
       <div style="font-family:'Space Mono',monospace;font-weight:700;color:${c.active===false?'var(--muted)':'var(--accent)'};font-size:14px;letter-spacing:1px;text-decoration:${c.active===false?'line-through':'none'}">${c.code}</div>
-      <button class="btn-icon-mini" onclick="navigator.clipboard.writeText('${c.code}');showToast('📋 Copied!')" title="Copy">📋</button>
-      <button class="btn-icon-mini" style="color:${c.active===false?'var(--green)':'var(--accent2)'};" onclick="toggleCodeActive('${c.code}')" title="${c.active===false?'Re-activate':'Deactivate'}">${c.active===false?'✅':'⏸'}</button>
-      <button class="btn-icon-mini" style="color:var(--red);" onclick="deleteAccessCode('${c.code}')" title="Delete">🗑</button>
-    </div>
-  `).join('');
+      <button class="btn-icon-mini" onclick="navigator.clipboard.writeText('${c.code}');showToast('📋 Copied!')">📋</button>
+      <button class="btn-icon-mini" style="color:${c.active===false?'var(--green)':'var(--accent2)'};" onclick="toggleCodeActive('${c.code}')">${c.active===false?'✅':'⏸'}</button>
+      <button class="btn-icon-mini" style="color:var(--red);" onclick="deleteAccessCode('${c.code}')">🗑</button>
+    </div>`).join('');
 }
 
 async function toggleCodeActive(code) {
   const cfg = getGistConfig();
   const codes = getCachedCodes() || [];
-  const entry = codes.find(c => c.code === code);
+  const entry = codes.find(c=>c.code===code);
   if (!entry) return;
   entry.active = entry.active === false ? true : false;
-  try {
-    if (cfg?.gistId) await writeGistCodes(cfg, codes);
-    setCachedCodes(codes);
-    renderAdminCodesList(codes);
-    showToast(entry.active ? '✅ Code re-activated' : '⏸ Code deactivated');
-  } catch(e) { showToast('❌ Error: ' + e.message); }
+  try { if (cfg?.gistId) await writeGistCodes(cfg, codes); setCachedCodes(codes); renderAdminCodesList(codes); showToast(entry.active?'✅ Activated':'⏸ Deactivated'); }
+  catch(e) { showToast('❌ Error: '+e.message); }
 }
 
 async function deleteAccessCode(code) {
   const cfg = getGistConfig();
-  let codes = getCachedCodes() || [];
-  codes = codes.filter(c => c.code !== code);
-  try {
-    if (cfg?.gistId) await writeGistCodes(cfg, codes);
-    setCachedCodes(codes);
-    renderAdminCodesList(codes);
-    showToast('🗑 Code delete হয়েছে');
-  } catch(e) { showToast('❌ Error: ' + e.message); }
+  let codes = (getCachedCodes()||[]).filter(c=>c.code!==code);
+  try { if (cfg?.gistId) await writeGistCodes(cfg, codes); setCachedCodes(codes); renderAdminCodesList(codes); showToast('🗑 Deleted'); }
+  catch(e) { showToast('❌ Error: '+e.message); }
 }
 
 function exportCodesList() {
   const codes = getCachedCodes() || [];
-  if (codes.length === 0) { showToast('⚠️ কোনো code নেই'); return; }
-  const headers = ['Label','Code','Created At','Active','Used','Use Count','Last Used'];
-  const rows = codes.map(c => [
-    `"${(c.label||'').replace(/"/g,'""')}"`,
-    c.code, c.createdAt,
-    c.active===false?'No':'Yes',
-    c.used?'Yes':'No',
-    c.useCount||0,
-    c.lastUsed||''
-  ].join(','));
-  const csv = [headers.join(','), ...rows].join('\r\n');
-  const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' });
+  if (!codes.length) { showToast('⚠️ কোনো code নেই'); return; }
+  const csv = ['Label,Code,Created,Active,Used,UseCount'].concat(codes.map(c=>['"'+(c.label||'').replace(/"/g,'""')+'"',c.code,c.createdAt,c.active===false?'No':'Yes',c.used?'Yes':'No',c.useCount||0].join(','))).join('
+');
+  const blob = new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'robi-graphics-access-codes.csv';
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showToast('✅ Codes CSV ডাউনলোড হয়েছে');
+  const a = document.createElement('a'); a.href=url; a.download='robi-access-codes.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  showToast('✅ CSV downloaded');
 }
 
-// Run access check on load
+// Run on load
 document.addEventListener('DOMContentLoaded', checkAccessGate);
 if (document.readyState !== 'loading') checkAccessGate();
 
