@@ -362,14 +362,34 @@
   .result-body { flex: 1; min-width: 0; }
   .result-filename { font-size: 11px; color: var(--muted); margin-bottom: 6px; font-family: 'Space Mono', monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .result-field { margin-bottom: 8px; }
-  .result-field-label { font-size: 10px; color: var(--accent2); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 3px; font-family: 'Space Mono', monospace; }
+  .result-field-label { font-size: 10px; color: var(--accent2); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 3px; font-family: 'Space Mono', monospace; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .btn-icon-mini { background: transparent; border: 1px solid var(--border); color: var(--muted); cursor: pointer; font-size: 11px; padding: 2px 6px; border-radius: 5px; line-height: 1.4; transition: 0.15s; text-transform: none; letter-spacing: normal; }
+  .btn-icon-mini:hover { color: var(--accent2); border-color: var(--accent2); }
   .result-field-text { font-size: 14px; font-weight: 600; color: var(--text); }
   .result-field-text.desc { font-size: 13px; font-weight: 400; color: #b0c4d8; line-height: 1.4; }
   .keywords-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
   .kw { padding: 3px 9px; border-radius: 4px; font-size: 11px; background: rgba(0,229,255,0.08); color: var(--accent); border: 1px solid rgba(0,229,255,0.15); font-family: 'Space Mono', monospace; }
+  .kw.kw-dup { background: rgba(255,107,0,0.15); color: var(--accent2); border-color: rgba(255,107,0,0.3); }
+  .kw.kw-banned { background: rgba(255,0,80,0.15); color: var(--red); border-color: rgba(255,0,80,0.3); }
   .result-meta { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
   .result-meta span { font-size: 11px; color: var(--muted); font-family: 'Space Mono', monospace; }
   .result-meta strong { color: var(--text); }
+  .result-meta strong.warn { color: var(--accent2); }
+  .result-meta strong.err { color: var(--red); }
+  .result-field-text[contenteditable="true"] { cursor: text; outline: none; border-radius: 4px; padding: 2px 4px; transition: 0.15s; }
+  .result-field-text[contenteditable="true"]:hover { background: rgba(0,229,255,0.05); }
+  .result-field-text[contenteditable="true"]:focus { background: rgba(0,229,255,0.08); box-shadow: 0 0 0 1px var(--accent); }
+  .result-card { position: relative; }
+  .result-checkbox { position: absolute; top: 10px; left: 10px; width: 16px; height: 16px; cursor: pointer; z-index: 2; accent-color: var(--accent); }
+  .filter-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .filter-btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--muted); font-size: 12px; cursor: pointer; transition: 0.15s; font-family: 'Space Mono', monospace; }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,255,0.08); }
+  .filter-search { flex: 1; min-width: 140px; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 12px; }
+  .bulk-actions { display: none; gap: 8px; align-items: center; margin-bottom: 10px; padding: 8px 12px; background: rgba(255,107,0,0.08); border: 1px solid rgba(255,107,0,0.2); border-radius: 8px; }
+  .bulk-actions.show { display: flex; }
+  .bulk-actions span { font-size: 12px; color: var(--accent2); font-family: 'Space Mono', monospace; }
+  .findreplace-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+  .findreplace-bar input { padding: 7px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-size: 12px; flex: 1; min-width: 100px; }
   .result-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
   .btn-icon { background: none; border: 1px solid var(--border); color: var(--muted); cursor: pointer; padding: 6px 10px; border-radius: 6px; font-size: 13px; transition: all 0.2s; }
   .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
@@ -604,21 +624,205 @@
 </head>
 <body>
 
+<!-- ===== ACCESS GATE OVERLAY ===== -->
+<div id="accessGateOverlay" style="position:fixed;inset:0;z-index:99999;background:#05070a;display:flex;align-items:center;justify-content:center;padding:20px;">
+  <div style="width:100%;max-width:440px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:32px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+    <div style="font-size:40px;margin-bottom:8px;">🔐</div>
+    <div class="logo" style="justify-content:center;margin-bottom:4px;">ℛØℬᎥ Graphics</div>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:24px;">এই tool ব্যবহার করতে Access Code প্রয়োজন</p>
+
+    <!-- Loading state -->
+    <div id="gateLoadingState" style="display:none;padding:16px 0;color:var(--muted);font-size:13px;font-family:'Space Mono',monospace;">
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
+        <div style="width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+        Verifying…
+      </div>
+    </div>
+
+    <!-- Code input -->
+    <div id="gateInputState">
+      <input type="text" id="accessCodeInput" placeholder="আপনার Access Code লিখুন…"
+        style="width:100%;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;text-align:center;letter-spacing:2px;font-family:'Space Mono',monospace;margin-bottom:12px;outline:none;"
+        onkeydown="if(event.key==='Enter')tryAccessCode()">
+      <button class="btn btn-generate" style="width:100%;justify-content:center;margin-bottom:16px;" onclick="tryAccessCode()">🔓 Unlock</button>
+      <div id="accessGateError" style="color:var(--red);font-size:13px;margin-bottom:16px;display:none;"></div>
+    </div>
+
+    <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px;">
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Access Code নেই? Owner-এর সাথে যোগাযোগ করুন:</p>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <a href="https://wa.me/8801976978728" target="_blank" style="font-size:12px;padding:8px 14px;background:rgba(37,211,102,0.12);color:#25d366;border:1px solid rgba(37,211,102,0.3);border-radius:8px;text-decoration:none;">💬 WhatsApp</a>
+        <a href="mailto:robiulislam78888@gmail.com" style="font-size:12px;padding:8px 14px;background:rgba(0,229,255,0.1);color:var(--accent);border:1px solid rgba(0,229,255,0.25);border-radius:8px;text-decoration:none;">✉️ Email</a>
+      </div>
+    </div>
+
+    <div style="margin-top:20px;">
+      <button onclick="document.getElementById('adminLoginPrompt').style.display='flex'" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;text-decoration:underline;">Admin?</button>
+    </div>
+  </div>
+
+  <!-- Admin login mini-prompt -->
+  <div id="adminLoginPrompt" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;z-index:100000;">
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px;width:360px;max-width:90vw;">
+      <h3 style="margin-bottom:6px;">🛡️ Admin Login</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Admin password দিয়ে লগইন করুন</p>
+      <input type="password" id="adminPasswordInput" placeholder="Admin password" style="width:100%;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;margin-bottom:10px;outline:none;" onkeydown="if(event.key==='Enter')tryAdminLogin()">
+      <div id="adminLoginError" style="display:none;color:var(--red);font-size:12px;margin-bottom:10px;"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-generate" style="flex:1;justify-content:center;" onclick="tryAdminLogin()">Login</button>
+        <button class="btn btn-pause" style="flex:1;justify-content:center;" onclick="document.getElementById('adminLoginPrompt').style.display='none'">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== GIST SETUP MODAL (first-time admin setup) ===== -->
+<div class="modal-bg" id="gistSetupModalBg" style="z-index:99998;">
+  <div class="modal" style="width:560px;max-width:96vw;">
+    <h2 style="margin-bottom:6px;">⚙️ GitHub Gist Setup</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:20px;">একবার setup করুন — তারপর যেকোনো device থেকে codes কাজ করবে, আর HTML আপলোড করতে হবে না।</p>
+
+    <!-- Step 1 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">
+      <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent2);letter-spacing:2px;margin-bottom:10px;">STEP 1 — GitHub Token তৈরি করুন</div>
+      <ol style="font-size:13px;color:var(--text);line-height:1.8;padding-left:18px;">
+        <li><a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--accent);">github.com/settings/tokens/new</a> — এখানে যান</li>
+        <li>Note: <code style="background:var(--card);padding:1px 6px;border-radius:4px;">ROBI Graphics</code></li>
+        <li>Expiration: <strong>No expiration</strong></li>
+        <li>Scopes: ✅ <strong>gist</strong> শুধু এটা tick দিন</li>
+        <li>Generate token → copy করুন</li>
+      </ol>
+    </div>
+
+    <!-- Step 2 -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">
+      <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent2);letter-spacing:2px;margin-bottom:10px;">STEP 2 — Token ও Gist ID দিন</div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">GitHub Personal Access Token</label>
+        <input type="password" id="gistTokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="width:100%;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'Space Mono',monospace;outline:none;">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">Gist ID <span style="font-size:11px;">(প্রথমবার খালি রাখুন — auto তৈরি হবে)</span></label>
+        <input type="text" id="gistIdInput" placeholder="auto-create করতে খালি রাখুন" style="width:100%;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'Space Mono',monospace;outline:none;">
+      </div>
+    </div>
+
+    <div id="gistSetupError" style="display:none;background:rgba(255,45,85,0.08);border:1px solid rgba(255,45,85,0.3);border-radius:8px;padding:10px;font-size:13px;color:var(--red);margin-bottom:12px;"></div>
+    <div id="gistSetupSuccess" style="display:none;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);border-radius:8px;padding:10px;font-size:13px;color:var(--green);margin-bottom:12px;"></div>
+
+    <div class="modal-btns">
+      <button class="btn btn-generate" style="flex:2;justify-content:center;" id="gistSetupSaveBtn" onclick="saveGistConfig()">✅ Save & Connect</button>
+      <button class="btn btn-pause" style="flex:1;justify-content:center;" onclick="document.getElementById('gistSetupModalBg').classList.remove('show')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ADMIN PANEL (GitHub Gist-powered) ===== -->
+<div class="modal-bg" id="adminPanelModalBg">
+  <div class="modal" style="width:660px;max-width:96vw;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <h2>🛡️ Admin Panel</h2>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div id="gistStatusBadge" style="font-size:11px;font-family:'Space Mono',monospace;border-radius:6px;padding:3px 10px;background:rgba(255,107,0,0.12);color:var(--accent2);border:1px solid rgba(255,107,0,0.3);">⏳ Not Connected</div>
+        <span style="font-size:11px;font-family:'Space Mono',monospace;background:rgba(124,58,237,0.15);color:var(--accent3);border:1px solid rgba(124,58,237,0.3);border-radius:6px;padding:3px 10px;">ADMIN SESSION</span>
+      </div>
+    </div>
+    <p style="margin-bottom:14px;color:var(--muted);font-size:13px;">GitHub Gist-এ codes সংরক্ষণ হয় — যেকোনো device থেকে একই code কাজ করে। আর HTML আপলোড করতে হয় না।</p>
+
+    <!-- Gist connection status bar -->
+    <div id="gistConnectedBar" style="display:none;background:rgba(0,255,136,0.07);border:1px solid rgba(0,255,136,0.25);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:none;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;flex-shrink:0;"></div>
+        <div>
+          <div style="font-size:12px;color:var(--green);font-weight:700;">GitHub Gist Connected</div>
+          <div id="gistConnectedId" style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;"></div>
+        </div>
+      </div>
+      <button onclick="openGistSetup()" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);color:var(--accent);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:11px;font-family:'Space Mono',monospace;">⚙️ Change</button>
+    </div>
+
+    <div id="gistNotConnectedBar" style="background:rgba(255,107,0,0.07);border:1px solid rgba(255,107,0,0.3);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="font-size:13px;color:var(--accent2);">⚠️ GitHub Gist এখনো setup হয়নি। Setup করলে যেকোনো device থেকে codes কাজ করবে।</div>
+      <button onclick="openGistSetup()" class="btn btn-generate" style="padding:8px 16px;font-size:13px;white-space:nowrap;">⚙️ Setup Gist</button>
+    </div>
+
+    <!-- Stats row -->
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px;display:flex;gap:24px;flex-wrap:wrap;">
+      <div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">মোট Codes</div>
+        <div style="font-size:26px;font-weight:700;color:var(--accent);font-family:'Orbitron',monospace;" id="adminTotalCodesCount">0</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">ব্যবহৃত</div>
+        <div style="font-size:26px;font-weight:700;color:var(--green);font-family:'Orbitron',monospace;" id="adminUsedCodesCount">0</div>
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Unused</div>
+        <div style="font-size:26px;font-weight:700;color:var(--muted);font-family:'Orbitron',monospace;" id="adminUnusedCodesCount">0</div>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;">
+        <button onclick="syncFromGist(true)" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);color:var(--accent);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:12px;font-family:'Space Mono',monospace;display:flex;align-items:center;gap:6px;" id="syncBtn">
+          🔄 Sync
+        </button>
+      </div>
+    </div>
+
+    <!-- Generate new code -->
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:11px;color:var(--accent2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;font-family:'Space Mono',monospace;">নতুন User-এর জন্য Code তৈরি করুন</label>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="newUserLabelInput" placeholder="User নাম/নোট (যেমন: Karim Bhai)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;" onkeydown="if(event.key==='Enter')generateNewAccessCode()">
+        <button class="btn btn-generate" onclick="generateNewAccessCode()" id="genCodeBtn">+ Generate</button>
+      </div>
+    </div>
+
+    <!-- Code list -->
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:11px;color:var(--accent2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;font-family:'Space Mono',monospace;">সব Codes</label>
+      <div id="adminCodesList" style="max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:8px;"></div>
+    </div>
+
+    <div class="modal-btns">
+      <button class="btn btn-export" style="flex:1;justify-content:center;" onclick="exportCodesList()">⬇ CSV Export</button>
+      <button class="btn" style="flex:1;justify-content:center;background:rgba(255,45,85,0.12);color:var(--red);border:1px solid rgba(255,45,85,0.3);" onclick="adminLogout()">🚪 Logout</button>
+      <button class="btn btn-pause" style="flex:1;justify-content:center;" onclick="document.getElementById('adminPanelModalBg').classList.remove('show')">Close</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- HEADER -->
 <header>
-  <div>
+  <div style="display:flex;align-items:center;gap:18px;">
     <div class="logo">ℛØℬᎥ Graphics<span>AI · METADATA · GENERATOR</span></div>
+    <div class="view-switch" style="display:flex;gap:4px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:4px;">
+      <button class="view-switch-btn active" id="viewBtnMeta" onclick="switchView('meta')">🏷️ Metadata</button>
+      <button class="view-switch-btn" id="viewBtnPrompt" onclick="switchView('prompt')">✨ Image-to-Prompt</button>
+    </div>
   </div>
   <div class="header-right">
     <div class="status-dot" title="AI Ready"></div>
+    <span id="epsServerStatus" style="font-size:11px;font-family:'Space Mono',monospace;display:none;">🟢 EPS Server</span>
+    <button class="btn-users" onclick="openSupportModal()" style="background:rgba(255,193,7,0.12);color:#ffc107;border:1px solid rgba(255,193,7,0.3);">💛 Support / Pay</button>
     <button class="btn-users" onclick="openHistoryModal()" style="background:rgba(0,229,255,0.1);color:var(--accent);border:1px solid rgba(0,229,255,0.3);">🕘 History</button>
     <button class="btn-users" onclick="openUsersModal()">👥 Users</button>
     <button class="btn-settings" onclick="openSettingsModal()">⚙ Settings</button>
     <button class="btn-api" onclick="openModal()">🔑 API Key</button>
+    <button class="admin-only" id="adminHeaderBtn" onclick="openAdminPanel()" style="display:none;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;cursor:pointer;padding:11px 22px;border-radius:10px;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;transition:all 0.2s;">🛡️ Admin</button>
   </div>
 </header>
 
-<div class="main">
+<style>
+  .view-switch-btn {
+    padding: 8px 16px; border-radius: 7px; border: none; background: transparent;
+    color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: 0.15s; font-family: inherit;
+  }
+  .view-switch-btn.active { background: var(--accent); color: #000; }
+  .view-switch-btn:hover:not(.active) { color: var(--text); }
+</style>
+
+<div class="main" id="viewMeta">
   <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-section">
@@ -627,6 +831,7 @@
         <option value="gemini">Google Gemini (Free & Paid)</option>
         <option value="openai">OpenAI GPT-4o</option>
         <option value="openrouter">OpenRouter</option>
+        <option value="grok">xAI Grok</option>
       </select>
       <div style="margin-top:10px;">
         <div class="sidebar-label" style="margin-bottom:6px;">Model</div>
@@ -776,9 +981,43 @@
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="btn btn-export" id="dlCsvBtn" onclick="exportCSV()" style="display:none;font-size:13px;padding:10px 16px;">📊 Download CSV</button>
+          <button class="btn btn-export" id="dlAllPlatformsBtn" onclick="downloadAllPlatformsCSV()" style="display:none;font-size:13px;padding:10px 16px;background:rgba(168,85,247,0.12);color:#a855f7;border:1px solid rgba(168,85,247,0.3);">📚 All Platforms CSV</button>
+          <button class="btn btn-export" id="dlPromptsBtn" onclick="downloadAllPrompts()" style="display:none;font-size:13px;padding:10px 16px;background:rgba(255,193,7,0.12);color:#ffc107;border:1px solid rgba(255,193,7,0.3);">🎨 Download Recreation Prompts</button>
           <button class="btn btn-dl-zip" id="dlZipBtn" onclick="downloadZip()" style="display:none;">📦 Download ZIP</button>
         </div>
       </div>
+
+      <!-- Filter / Search Bar -->
+      <div class="filter-bar" id="filterBar" style="display:none;">
+        <button class="filter-btn active" id="filterAllBtn" onclick="setResultFilter('all')">সব</button>
+        <button class="filter-btn" id="filterSuccessBtn" onclick="setResultFilter('success')">✅ সফল</button>
+        <button class="filter-btn" id="filterFailedBtn" onclick="setResultFilter('failed')">⚠ Failed</button>
+        <input type="text" class="filter-search" id="resultSearchInput" placeholder="🔍 Title / filename দিয়ে সার্চ করুন…" oninput="applyResultFilters()">
+        <button class="filter-btn" onclick="toggleFindReplaceBar()">🔁 Find &amp; Replace</button>
+        <button class="filter-btn" onclick="toggleBulkSelect()">☑ Select</button>
+      </div>
+
+      <!-- Find & Replace Bar -->
+      <div class="findreplace-bar" id="findReplaceBar" style="display:none;">
+        <input type="text" id="frFind" placeholder="খুঁজুন (keyword/word)…">
+        <input type="text" id="frReplace" placeholder="পরিবর্তন করুন (খালি রাখলে remove হবে)…">
+        <select id="frScope" style="padding:7px 10px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;">
+          <option value="keywords">Keywords-এ</option>
+          <option value="title">Title-এ</option>
+          <option value="description">Description-এ</option>
+          <option value="all">সব জায়গায়</option>
+        </select>
+        <button class="btn-retry-failed" onclick="findAndReplaceAll()">🔁 Replace All</button>
+      </div>
+
+      <!-- Bulk Actions Bar -->
+      <div class="bulk-actions" id="bulkActionsBar">
+        <span><span id="selectedCount">0</span>টি সিলেক্ট করা হয়েছে</span>
+        <button class="filter-btn" onclick="selectAllResults()">সব সিলেক্ট</button>
+        <button class="filter-btn" onclick="deselectAllResults()">সব ডিসিলেক্ট</button>
+        <button class="filter-btn" style="color:var(--red);border-color:var(--red);" onclick="bulkDeleteSelected()">🗑 Delete Selected</button>
+      </div>
+
       <div class="result-list" id="resultList">
         <div class="empty" id="emptyState">
           <div class="ei">🔮</div>
@@ -787,7 +1026,121 @@
       </div>
     </div>
   </div>
+</div><!-- /viewMeta -->
+
+<!-- ===== IMAGE-TO-PROMPT VIEW ===== -->
+<div class="main" id="viewPrompt" style="display:none;">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="section-title">🔑 AI Provider</div>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Metadata generator-এর মতোই API key ব্যবহার হবে (Settings → 🔑 API Key)</p>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">🎨 Target AI Tool</div>
+      <select id="promptTargetTool" style="width:100%;padding:10px;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
+        <option value="midjourney">Midjourney</option>
+        <option value="dalle">DALL·E 3</option>
+        <option value="stablediffusion">Stable Diffusion</option>
+        <option value="leonardo">Leonardo AI</option>
+        <option value="general">General / Any AI Image Tool</option>
+      </select>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">📝 Prompt Style</div>
+      <select id="promptStyle" style="width:100%;padding:10px;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
+        <option value="detailed">Detailed (সব technical detail সহ)</option>
+        <option value="concise">Concise (সংক্ষিপ্ত, মূল বিষয়)</option>
+        <option value="artistic">Artistic (style/mood-focused)</option>
+      </select>
+    </div>
+
+    <div class="sidebar-section">
+      <button class="btn btn-generate" style="width:100%;justify-content:center;" onclick="startPromptGeneration()" id="promptGenBtn">
+        ✨ Generate Prompts
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <button class="btn btn-clear" style="width:100%;justify-content:center;" onclick="clearPromptFiles()">🗑 Clear All</button>
+    </div>
+  </aside>
+
+  <div class="content">
+    <div class="dropzone" id="promptDropzone"
+         onclick="document.getElementById('promptFileInput').click()"
+         ondragover="event.preventDefault();this.classList.add('dragover')"
+         ondragleave="this.classList.remove('dragover')"
+         ondrop="handlePromptDrop(event)">
+      <input type="file" id="promptFileInput" multiple accept="image/*" onchange="handlePromptFiles(this.files)" style="display:none;">
+      <div id="promptPreviewGrid" class="preview-grid" style="width:100%;padding:12px;display:none;"></div>
+      <div id="promptDzPlaceholder" style="display:flex;flex-direction:column;align-items:center;gap:8px;padding:30px;">
+        <div style="font-size:36px;">✨</div>
+        <p style="font-weight:600;">Design/Image upload করুন</p>
+        <p style="font-size:12px;color:var(--muted);">AI দেখে বলে দেবে এই design বানাতে কী prompt লাগবে (Midjourney/DALL-E/Stable Diffusion)</p>
+      </div>
+    </div>
+
+    <div class="progress-wrap" id="promptProgressWrap" style="display:none;">
+      <div class="progress-bar"><div class="progress-fill" id="promptProgressFill"></div></div>
+      <div class="progress-text" id="promptProgressText">Processing…</div>
+    </div>
+
+    <div class="results-header" style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px;">
+      <h3 style="color:var(--accent2);">GENERATED PROMPTS <span class="results-count" id="promptResultCount">0</span></h3>
+      <button class="btn btn-export" id="dlPromptResultsBtn" onclick="downloadAllGeneratedPrompts()" style="display:none;font-size:13px;padding:10px 16px;">📝 Download All Prompts (.txt)</button>
+    </div>
+
+    <div class="result-list" id="promptResultList">
+      <div class="empty" id="promptEmptyState">
+        <div class="ei">✨</div>
+        <p>Design upload করুন — AI সেটা দেখে exact recreation prompt লিখে দেবে</p>
+      </div>
+    </div>
+  </div>
+</div><!-- /viewPrompt -->
+
+<!-- ===== SUPPORT / PAYMENT MODAL ===== -->
+<div class="modal-bg" id="supportModalBg">
+  <div class="modal" style="width:480px;max-width:94vw;">
+    <h2>💛 Support This Tool</h2>
+    <p style="margin-bottom:16px;">এই tool টা সম্পূর্ণ ফ্রিতে ব্যবহার করতে পারবেন। তবে যদি এটা আপনার উপকারে আসে এবং চালিয়ে যেতে সাহায্য করতে চান, নিচের যেকোনো মাধ্যমে <strong>আপনার ইচ্ছামতো</strong> পরিমাণ পাঠাতে পারেন। কোনো বাধ্যবাধকতা নেই।</p>
+
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;">
+      <div style="font-size:11px;color:var(--accent2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;font-family:'Space Mono',monospace;">📱 bKash / Nagad / Rocket</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--card);border-radius:8px;padding:12px 14px;margin-bottom:8px;">
+        <span style="font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--text);">01976-978728</span>
+        <button class="btn-icon-mini" style="font-size:12px;padding:6px 12px;" onclick="copyToClipboard('01976978728', this)">📋 Copy</button>
+      </div>
+      <p style="font-size:11px;color:var(--muted);">Send Money বা Mobile Banking app দিয়ে ইচ্ছামতো amount পাঠান।</p>
+    </div>
+
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;">
+      <div style="font-size:11px;color:var(--accent2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:10px;font-family:'Space Mono',monospace;">✉️ Email / Contact</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--card);border-radius:8px;padding:12px 14px;">
+        <span style="font-family:'Space Mono',monospace;font-size:13px;color:var(--text);word-break:break-all;">robiulislam78888@gmail.com</span>
+        <button class="btn-icon-mini" style="font-size:12px;padding:6px 12px;flex-shrink:0;margin-left:8px;" onclick="copyToClipboard('robiulislam78888@gmail.com', this)">📋 Copy</button>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px;">টাকা দেওয়ার সামর্থ্য না থাকলেও সমস্যা নেই — মেইল করে free access-এর জন্য request করতে পারেন।</p>
+    </div>
+
+    <div style="margin-bottom:16px;">
+      <label style="display:block;font-size:11px;color:var(--accent2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;font-family:'Space Mono',monospace;">💰 আপনার ইচ্ছামতো Amount (ঐচ্ছিক হিসাব)</label>
+      <div style="display:flex;gap:8px;">
+        <input type="number" id="customAmountInput" placeholder="যেমন: 50, 100, 500…" min="1" style="flex:1;padding:10px;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;">
+        <span style="display:flex;align-items:center;color:var(--muted);font-size:13px;">৳ টাকা</span>
+      </div>
+      <p style="font-size:11px;color:var(--muted);margin-top:6px;">এটা শুধু আপনার নিজের হিসাবের জন্য — bKash/Nagad-এ পাঠানোর সময় এই amount লিখবেন।</p>
+    </div>
+
+    <div class="modal-btns">
+      <a href="https://wa.me/8801976978728" target="_blank" class="btn btn-generate" style="flex:1;justify-content:center;text-decoration:none;">💬 WhatsApp Message</a>
+      <button class="btn btn-pause" style="flex:1;justify-content:center;" onclick="document.getElementById('supportModalBg').classList.remove('show')">Close</button>
+    </div>
+  </div>
 </div>
+
 
 <!-- HISTORY MODAL -->
 <div class="modal-bg" id="historyModalBg">
@@ -815,6 +1168,7 @@
         <option value="gemini">Google Gemini</option>
         <option value="openai">OpenAI</option>
         <option value="openrouter">OpenRouter</option>
+        <option value="grok">xAI Grok</option>
       </select>
     </div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:5px;font-family:'Space Mono',monospace;">API KEY</div>
@@ -882,8 +1236,8 @@
 
     <div class="modal-section-label">Worker Threads</div>
     <div class="slider-wrap">
-      <div class="slider-header"><span>Parallel Workers</span><span id="workerVal">3</span></div>
-      <input type="range" min="1" max="10" value="3" oninput="document.getElementById('workerVal').textContent=this.value; parallelWorkers=parseInt(this.value);">
+      <div class="slider-header"><span>Parallel Workers</span><span id="workerVal">5</span></div>
+      <input type="range" min="1" max="15" value="5" oninput="document.getElementById('workerVal').textContent=this.value; parallelWorkers=parseInt(this.value);">
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:4px;">More workers = faster processing for large batches. Higher values may hit rate limits.</div>
 
@@ -968,6 +1322,524 @@
 <div class="toast" id="toast"><span class="ti">✅</span><span id="toastMsg">Done!</span></div>
 
 <script>
+// ════════════════════════════════════════════════════════════════
+// ===== ACCESS CONTROL SYSTEM =====
+// ════════════════════════════════════════════════════════════════
+// IMPORTANT: Change this secret before deploying! This is what makes
+// ════════════════════════════════════════════════════════════════
+// ===== ACCESS CONTROL — GitHub Gist-based (cross-device) =====
+// কীভাবে কাজ করে:
+//   ১. Admin একটি GitHub Gist-এ codes store করেন (JSON)
+//   ২. User code দিলে → Gist থেকে fetch করে validate করা হয়
+//   ৩. নতুন code বানালে → সরাসরি Gist আপডেট হয়
+//   ৪. যেকোনো device থেকে একই codes কাজ করে — HTML আপলোড লাগে না
+// ════════════════════════════════════════════════════════════════
+
+// Admin password check
+// simple constants — no async needed
+const ADMIN_PASS = '5877162026';
+
+// ── Hardcoded Gist ID (embedded by admin for cross-device use) ───
+// Admin: Gist setup করার পর এই ID টা এখানে লিখুন (একবারই করতে হবে)
+const HARDCODED_GIST_ID = '4d5dbd5f3322e6c4194681d46665c625'; // ← আপনার Gist ID
+
+// ── Gist config (saved in localStorage) ──────────────────────────
+function getGistConfig() {
+  try { return JSON.parse(localStorage.getItem('robig_gist_config') || 'null'); }
+  catch { return null; }
+}
+function saveGistConfig_local(cfg) {
+  localStorage.setItem('robig_gist_config', JSON.stringify(cfg));
+}
+
+// ── Gist API helpers ─────────────────────────────────────────────
+const GIST_FILENAME = 'robi-graphics-codes.json';
+
+async function gistFetch(method, gistId, token, body) {
+  const url = gistId
+    ? `https://api.github.com/gists/${gistId}`
+    : 'https://api.github.com/gists';
+  const opts = {
+    method,
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function readGistCodes(cfg) {
+  if (!cfg?.gistId || !cfg?.token) return null;
+  try {
+    const gist = await gistFetch('GET', cfg.gistId, cfg.token);
+    const raw = gist.files?.[GIST_FILENAME]?.content;
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+
+async function writeGistCodes(cfg, codes) {
+  const content = JSON.stringify(codes, null, 2);
+  const body = { files: { [GIST_FILENAME]: { content } } };
+  if (cfg.gistId) {
+    await gistFetch('PATCH', cfg.gistId, cfg.token, body);
+  } else {
+    // Create new Gist
+    body.description = 'ROBI Graphics — Access Codes (do not delete)';
+    body.public = false;
+    const res = await gistFetch('POST', null, cfg.token, body);
+    cfg.gistId = res.id;
+    saveGistConfig_local(cfg);
+    return cfg;
+  }
+}
+
+// ── Public Gist read (no token needed — for user validation) ──────
+// Users validate against a cached copy in localStorage (refreshed on each admin write)
+// so validation is instant and works offline after first use.
+function getCachedCodes() {
+  try { return JSON.parse(localStorage.getItem('robig_codes_cache') || 'null'); }
+  catch { return null; }
+}
+function setCachedCodes(codes) {
+  localStorage.setItem('robig_codes_cache', JSON.stringify(codes));
+  localStorage.setItem('robig_codes_cache_time', Date.now().toString());
+}
+
+// Cache TTL: 10 minutes — after that, try to re-fetch on next access check
+const CACHE_TTL_MS = 10 * 60 * 1000;
+
+async function fetchAndCacheCodes() {
+  const cfg = getGistConfig();
+  // Admin device: use token for authenticated fetch
+  if (cfg?.gistId && cfg?.token) {
+    const codes = await readGistCodes(cfg);
+    if (codes !== null) { setCachedCodes(codes); return codes; }
+  }
+  // Other devices: try public fetch using stored gistId (no token needed)
+  const storedGistId = cfg?.gistId || localStorage.getItem('robig_public_gist_id') || HARDCODED_GIST_ID;
+  if (storedGistId) {
+    try {
+      const res = await fetch(`https://api.github.com/gists/${storedGistId}`, {
+        headers: { 'Accept': 'application/vnd.github+json' }
+      });
+      if (res.ok) {
+        const gist = await res.json();
+        const raw = gist.files?.['robi-graphics-codes.json']?.content;
+        if (raw) {
+          const codes = JSON.parse(raw);
+          setCachedCodes(codes);
+          return codes;
+        }
+      }
+    } catch(e) {}
+  }
+  return getCachedCodes() || [];
+}
+
+// ── Validation ────────────────────────────────────────────────────
+// Master code — always works (owner backup access), computed deterministically
+function simpleHash(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) { h = ((h << 5) + h) + str.charCodeAt(i); h = h & h; }
+  return Math.abs(h);
+}
+function computeMasterCode() {
+  const raw = 'robi-graphics-2026-secret-key-change-me::master-owner-robi';
+  const h = simpleHash(raw);
+  const s = h.toString(36).toUpperCase().padStart(8,'0').slice(0,8);
+  return `${s.slice(0,4)}-${s.slice(4,8)}`;
+}
+
+async function isValidAccessCode(code) {
+  const entered = code.trim().toUpperCase().replace(/\s/g,'');
+  if (!entered) return false;
+  // 1. Master code
+  if (entered === computeMasterCode()) return true;
+  // 2. Check cached/gist codes
+  const codes = getCachedCodes();
+  if (codes && codes.some(c => c.code === entered && c.active !== false)) return true;
+  // 3. Re-fetch from Gist (cache may be stale)
+  const fresh = await fetchAndCacheCodes();
+  return fresh.some(c => c.code === entered && c.active !== false);
+}
+
+// ── Access Gate UI ────────────────────────────────────────────────
+async function tryAccessCode() {
+  const input = document.getElementById('accessCodeInput');
+  const errEl = document.getElementById('accessGateError');
+  const loadEl = document.getElementById('gateLoadingState');
+  const inpEl  = document.getElementById('gateInputState');
+  const code = input.value.trim();
+  if (!code) return;
+
+  errEl.style.display = 'none';
+  loadEl.style.display = 'block';
+  inpEl.style.opacity = '0.5';
+  inpEl.style.pointerEvents = 'none';
+
+  try {
+    const valid = await isValidAccessCode(code);
+    if (valid) {
+      // Mark as used in Gist (best-effort, don't block unlock)
+      markCodeAsUsedInGist(code.toUpperCase()).catch(() => {});
+      localStorage.setItem('robig_unlocked', 'true');
+      localStorage.setItem('robig_unlock_code', code.toUpperCase());
+      localStorage.setItem('robig_unlock_time', new Date().toISOString());
+      document.getElementById('accessGateOverlay').style.display = 'none';
+      document.body.style.overflow = '';
+    } else {
+      loadEl.style.display = 'none';
+      inpEl.style.opacity = '';
+      inpEl.style.pointerEvents = '';
+      errEl.textContent = '❌ ভুল কোড। আবার চেষ্টা করুন অথবা Owner-এর সাথে যোগাযোগ করুন।';
+      errEl.style.display = 'block';
+      input.style.borderColor = 'var(--red)';
+      setTimeout(() => { input.style.borderColor = ''; }, 1500);
+    }
+  } catch(e) {
+    loadEl.style.display = 'none';
+    inpEl.style.opacity = '';
+    inpEl.style.pointerEvents = '';
+    errEl.textContent = '⚠️ Network error — cached codes দিয়ে চেষ্টা হচ্ছে…';
+    errEl.style.display = 'block';
+  }
+}
+
+async function markCodeAsUsedInGist(code) {
+  const cfg = getGistConfig();
+  if (!cfg?.gistId || !cfg?.token) return;
+  const codes = await readGistCodes(cfg);
+  if (!codes) return;
+  const entry = codes.find(c => c.code === code);
+  if (entry) {
+    entry.used = true;
+    entry.useCount = (entry.useCount || 0) + 1;
+    entry.lastUsed = new Date().toISOString();
+    await writeGistCodes(cfg, codes);
+    setCachedCodes(codes);
+  }
+}
+
+const APP_VERSION = 'v20-gist-1'; // ← এই version বদলালে সবার পুরনো session reset হবে
+
+async function checkAccessGate() {
+  const overlay = document.getElementById('accessGateOverlay');
+
+  // Version check — নতুন version deploy হলে পুরনো unlock session clear করো
+  const savedVersion = localStorage.getItem('robig_app_version');
+  if (savedVersion !== APP_VERSION) {
+    localStorage.removeItem('robig_unlocked');
+    localStorage.removeItem('robig_unlock_code');
+    localStorage.removeItem('robig_unlock_time');
+    localStorage.setItem('robig_app_version', APP_VERSION);
+  }
+
+  // Pre-fetch codes in background to warm cache
+  fetchAndCacheCodes().catch(() => {});
+
+  const unlocked = localStorage.getItem('robig_unlocked') === 'true';
+  if (unlocked) {
+    overlay.style.display = 'none';
+    if (isAdminSession()) document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+  } else {
+    overlay.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+// ── Admin Login ───────────────────────────────────────────────────
+function tryAdminLogin() {
+  const pwd = document.getElementById('adminPasswordInput').value.trim();
+  const errEl = document.getElementById('adminLoginError');
+  errEl.style.display = 'none';
+
+  if (pwd === ADMIN_PASS) {
+    document.getElementById('adminLoginPrompt').style.display = 'none';
+    document.getElementById('adminPasswordInput').value = '';
+    localStorage.setItem('robig_admin_session', 'true');
+    localStorage.setItem('robig_unlocked', 'true');
+    localStorage.setItem('robig_unlock_code', 'ADMIN');
+    document.getElementById('accessGateOverlay').style.display = 'none';
+    document.body.style.overflow = '';
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+    showToast('🛡️ Admin হিসেবে লগইন হয়েছে!');
+    openAdminPanel();
+  } else {
+    errEl.textContent = '❌ ভুল password।';
+    errEl.style.display = 'block';
+  }
+}
+
+function isAdminSession() {
+  return localStorage.getItem('robig_admin_session') === 'true';
+}
+
+function adminLogout() {
+  localStorage.removeItem('robig_admin_session');
+  document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+  document.getElementById('adminPanelModalBg').classList.remove('show');
+  showToast('🚪 Admin logout হয়েছে');
+}
+
+// ── Gist Setup Modal ──────────────────────────────────────────────
+function openGistSetup() {
+  const cfg = getGistConfig();
+  if (cfg?.token) document.getElementById('gistTokenInput').value = cfg.token;
+  if (cfg?.gistId) document.getElementById('gistIdInput').value = cfg.gistId;
+  document.getElementById('gistSetupError').style.display = 'none';
+  document.getElementById('gistSetupSuccess').style.display = 'none';
+  document.getElementById('gistSetupModalBg').classList.add('show');
+}
+
+async function saveGistConfig() {
+  const token = document.getElementById('gistTokenInput').value.trim();
+  const gistId = document.getElementById('gistIdInput').value.trim();
+  const errEl  = document.getElementById('gistSetupError');
+  const okEl   = document.getElementById('gistSetupSuccess');
+  const btn    = document.getElementById('gistSetupSaveBtn');
+  errEl.style.display = 'none';
+  okEl.style.display = 'none';
+
+  if (!token) { errEl.textContent = '❌ Token দিন।'; errEl.style.display='block'; return; }
+
+  btn.disabled = true; btn.textContent = '⏳ Connecting…';
+
+  try {
+    let cfg = { token, gistId: gistId || null };
+    // Test token with a GET /user call
+    const userRes = await fetch('https://api.github.com/user', {
+      headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github+json' }
+    });
+    if (!userRes.ok) throw new Error('Invalid token — GitHub rejected it');
+
+    if (!cfg.gistId) {
+      // Create new Gist with empty codes list
+      showToast('⏳ নতুন Gist তৈরি হচ্ছে…');
+      const body = {
+        description: 'ROBI Graphics — Access Codes (do not delete)',
+        public: false,
+        files: { [GIST_FILENAME]: { content: JSON.stringify([], null, 2) } }
+      };
+      const res = await gistFetch('POST', null, token, body);
+      cfg.gistId = res.id;
+    } else {
+      // Verify Gist is accessible
+      await gistFetch('GET', cfg.gistId, token);
+    }
+
+    saveGistConfig_local(cfg);
+    // Store public gistId so other devices can fetch without token
+    localStorage.setItem('robig_public_gist_id', cfg.gistId);
+    // Sync codes from Gist into cache
+    const codes = await readGistCodes(cfg);
+    if (codes) setCachedCodes(codes);
+
+    okEl.textContent = `✅ Connected! Gist ID: ${cfg.gistId}`;
+    okEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = '✅ Save & Connect';
+    showToast('✅ GitHub Gist connected!');
+    setTimeout(() => {
+      document.getElementById('gistSetupModalBg').classList.remove('show');
+      updateGistStatusUI();
+      syncFromGist(false);
+    }, 1500);
+  } catch(e) {
+    errEl.textContent = `❌ Error: ${e.message}`;
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = '✅ Save & Connect';
+  }
+}
+
+// ── Admin Panel ───────────────────────────────────────────────────
+function updateGistStatusUI() {
+  const cfg = getGistConfig();
+  const badge  = document.getElementById('gistStatusBadge');
+  const connBar = document.getElementById('gistConnectedBar');
+  const noBar   = document.getElementById('gistNotConnectedBar');
+  const connId  = document.getElementById('gistConnectedId');
+  if (cfg?.gistId) {
+    badge.style.background  = 'rgba(0,255,136,0.1)';
+    badge.style.color       = 'var(--green)';
+    badge.style.borderColor = 'rgba(0,255,136,0.3)';
+    badge.textContent       = '✅ Gist Connected';
+    connBar.style.display   = 'flex';
+    noBar.style.display     = 'none';
+    connId.textContent      = `gist.github.com/${cfg.gistId}`;
+  } else {
+    badge.style.background  = 'rgba(255,107,0,0.12)';
+    badge.style.color       = 'var(--accent2)';
+    badge.style.borderColor = 'rgba(255,107,0,0.3)';
+    badge.textContent       = '⚠️ Not Connected';
+    connBar.style.display   = 'none';
+    noBar.style.display     = 'flex';
+  }
+}
+
+async function syncFromGist(showMsg = true) {
+  const btn = document.getElementById('syncBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+  try {
+    const codes = await fetchAndCacheCodes();
+    renderAdminCodesList(codes);
+    if (showMsg) showToast(`✅ Sync হয়েছে — ${codes.length}টি code`);
+  } catch(e) {
+    if (showMsg) showToast('❌ Sync error: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync'; }
+  }
+}
+
+async function openAdminPanel() {
+  updateGistStatusUI();
+  const codes = getCachedCodes() || [];
+  renderAdminCodesList(codes);
+  document.getElementById('adminPanelModalBg').classList.add('show');
+  // Refresh from Gist in background
+  syncFromGist(false);
+}
+
+async function generateNewAccessCode() {
+  const labelInput = document.getElementById('newUserLabelInput');
+  const btn = document.getElementById('genCodeBtn');
+  let label = labelInput.value.trim();
+  if (!label) { showToast('⚠️ User নাম দিন'); return; }
+
+  // Generate a random short code (6 chars) — no deterministic hash needed anymore
+  const code = (Math.random().toString(36).slice(2,5) + Math.random().toString(36).slice(2,5)).toUpperCase();
+  const formatted = `${code.slice(0,4)}-${code.slice(4,6)}`;
+
+  const cfg = getGistConfig();
+  let codes = getCachedCodes() || [];
+
+  const newEntry = {
+    label,
+    code: formatted,
+    createdAt: new Date().toISOString(),
+    active: true,
+    used: false,
+    useCount: 0
+  };
+  codes.push(newEntry);
+
+  btn.disabled = true; btn.textContent = '⏳ Saving…';
+  try {
+    if (cfg?.gistId) {
+      await writeGistCodes(cfg, codes);
+      setCachedCodes(codes);
+      showToast(`✅ Code তৈরি ও Gist-এ save হয়েছে: ${formatted}`);
+    } else {
+      // No Gist configured — save only to local cache with warning
+      setCachedCodes(codes);
+      showToast(`✅ Code তৈরি হয়েছে: ${formatted} ⚠️ Gist setup করুন cross-device-এর জন্য`);
+    }
+    labelInput.value = '';
+    renderAdminCodesList(codes);
+  } catch(e) {
+    codes.pop(); // rollback
+    showToast('❌ Gist save error: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '+ Generate';
+  }
+}
+
+function escapeHtmlAdmin(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderAdminCodesList(codes) {
+  if (!codes) codes = getCachedCodes() || [];
+  const container = document.getElementById('adminCodesList');
+  const total = codes.length;
+  const used  = codes.filter(c => c.used).length;
+  document.getElementById('adminTotalCodesCount').textContent  = total;
+  document.getElementById('adminUsedCodesCount').textContent   = used;
+  document.getElementById('adminUnusedCodesCount').textContent = total - used;
+
+  if (total === 0) {
+    container.innerHTML = `<p style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">এখনো কোনো code তৈরি হয়নি</p>`;
+    return;
+  }
+
+  container.innerHTML = codes.slice().reverse().map(c => `
+    <div style="display:flex;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);gap:10px;" id="code-row-${c.code}">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;color:${c.active===false?'var(--muted)':'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtmlAdmin(c.label)}</div>
+        <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;">${c.used?`✅ Used (${c.useCount||1}x · ${c.lastUsed?new Date(c.lastUsed).toLocaleDateString('bn-BD'):''})`:'⏳ Not used'} · Created ${new Date(c.createdAt).toLocaleDateString('bn-BD')}</div>
+      </div>
+      <div style="font-family:'Space Mono',monospace;font-weight:700;color:${c.active===false?'var(--muted)':'var(--accent)'};font-size:14px;letter-spacing:1px;text-decoration:${c.active===false?'line-through':'none'}">${c.code}</div>
+      <button class="btn-icon-mini" onclick="navigator.clipboard.writeText('${c.code}');showToast('📋 Copied!')" title="Copy">📋</button>
+      <button class="btn-icon-mini" style="color:${c.active===false?'var(--green)':'var(--accent2)'};" onclick="toggleCodeActive('${c.code}')" title="${c.active===false?'Re-activate':'Deactivate'}">${c.active===false?'✅':'⏸'}</button>
+      <button class="btn-icon-mini" style="color:var(--red);" onclick="deleteAccessCode('${c.code}')" title="Delete">🗑</button>
+    </div>
+  `).join('');
+}
+
+async function toggleCodeActive(code) {
+  const cfg = getGistConfig();
+  const codes = getCachedCodes() || [];
+  const entry = codes.find(c => c.code === code);
+  if (!entry) return;
+  entry.active = entry.active === false ? true : false;
+  try {
+    if (cfg?.gistId) await writeGistCodes(cfg, codes);
+    setCachedCodes(codes);
+    renderAdminCodesList(codes);
+    showToast(entry.active ? '✅ Code re-activated' : '⏸ Code deactivated');
+  } catch(e) { showToast('❌ Error: ' + e.message); }
+}
+
+async function deleteAccessCode(code) {
+  const cfg = getGistConfig();
+  let codes = getCachedCodes() || [];
+  codes = codes.filter(c => c.code !== code);
+  try {
+    if (cfg?.gistId) await writeGistCodes(cfg, codes);
+    setCachedCodes(codes);
+    renderAdminCodesList(codes);
+    showToast('🗑 Code delete হয়েছে');
+  } catch(e) { showToast('❌ Error: ' + e.message); }
+}
+
+function exportCodesList() {
+  const codes = getCachedCodes() || [];
+  if (codes.length === 0) { showToast('⚠️ কোনো code নেই'); return; }
+  const headers = ['Label','Code','Created At','Active','Used','Use Count','Last Used'];
+  const rows = codes.map(c => [
+    `"${(c.label||'').replace(/"/g,'""')}"`,
+    c.code, c.createdAt,
+    c.active===false?'No':'Yes',
+    c.used?'Yes':'No',
+    c.useCount||0,
+    c.lastUsed||''
+  ].join(','));
+  const csv = [headers.join(','), ...rows].join('\r\n');
+  const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'robi-graphics-access-codes.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('✅ Codes CSV ডাউনলোড হয়েছে');
+}
+
+// Run access check on load
+document.addEventListener('DOMContentLoaded', checkAccessGate);
+if (document.readyState !== 'loading') checkAccessGate();
+
+// ════════════════════════════════════════════════════════════════
+// ===== END ACCESS CONTROL SYSTEM =====
+// ════════════════════════════════════════════════════════════════
+
 // ===== STATE =====
 let files = [];
 let filePreviewMap = {}; // filename+size -> base64 preview (for EPS/AI)
@@ -977,9 +1849,23 @@ let generating = false;
 let paused = false;
 let currentPlatform = 'general';
 let apiKeys = JSON.parse(localStorage.getItem('robig_keys') || '{}');
-let parallelWorkers = 3;
+let parallelWorkers = 5;
 let outputFilename = localStorage.getItem('robig_outname') || 'robi-graphics';
 let selectedExt = 'keep'; // extension override
+let resultFilter = 'all'; // 'all' | 'success' | 'failed'
+let bulkSelectMode = false;
+let selectedResultIndices = new Set();
+
+// Common words Shutterstock/Adobe often reject (brand-ish, trademark-ish, generic risky terms)
+const BANNED_WORDS = [
+  'iphone','android','facebook','instagram','twitter','windows','macbook','tesla',
+  'adidas','nike','coca cola','pepsi','disney','marvel','pixar','google','youtube',
+  'whatsapp','tiktok','samsung','apple','microsoft','playstation','xbox','netflix'
+];
+function isBannedKeyword(kw) {
+  const lower = String(kw).toLowerCase().trim();
+  return BANNED_WORDS.some(b => lower === b || lower.includes(b));
+}
 
 // ===== HISTORY =====
 let sessionHistory = JSON.parse(localStorage.getItem('robig_history') || '[]');
@@ -1243,8 +2129,19 @@ const MODELS = {
     { id: 'llama-3.2-90b-vision-preview', label: 'Llama 3.2 90B Vision', tier:'free', note:'Free! বড় model, ভালো quality' },
     { id: 'llama-3.1-8b-instant',         label: 'Llama 3.1 8B Instant', tier:'free', note:'Free! সবচেয়ে দ্রুত, image নেই' },
     { id: 'llama-3.3-70b-versatile',      label: 'Llama 3.3 70B',        tier:'free', note:'Free! ভালো, image নেই' },
+    { id: 'llama4-scout-17b-16e-instruct',label: 'Llama 4 Scout 17B',    tier:'free', note:'Free! নতুন Llama 4, দ্রুত' },
+    { id: 'llama4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B', tier:'free', note:'Free! নতুন Llama 4, শক্তিশালী' },
     { id: 'mixtral-8x7b-32768',           label: 'Mixtral 8x7B',         tier:'free', note:'Free! পুরনো কিন্তু reliable' },
     { id: 'gemma2-9b-it',                 label: 'Gemma 2 9B',           tier:'free', note:'Free! Google model, image নেই' },
+    { id: 'compound-beta',                label: 'Compound Beta',         tier:'free', note:'Free! Groq compound model' },
+  ],
+  grok: [
+    { id: 'grok-2-vision-1212', label: 'Grok 2 Vision', tier:'paid', note:'PAID, সেরা image বোঝার ক্ষমতা' },
+    { id: 'grok-2-1212',        label: 'Grok 2',         tier:'paid', note:'PAID, শক্তিশালী text model' },
+    { id: 'grok-3-mini-fast-beta', label: 'Grok 3 Mini Fast', tier:'paid', note:'PAID, দ্রুত reasoning' },
+    { id: 'grok-3-mini-beta',   label: 'Grok 3 Mini',    tier:'paid', note:'PAID, reasoning model' },
+    { id: 'grok-3-fast-beta',   label: 'Grok 3 Fast',    tier:'paid', note:'PAID, দ্রুত, শক্তিশালী' },
+    { id: 'grok-3-beta',        label: 'Grok 3',          tier:'paid', note:'PAID, সবচেয়ে powerful Grok' },
   ],
 };
 
@@ -1253,7 +2150,8 @@ const MODELS = {
   const sel = document.getElementById('aiProvider');
   const extra = [
     { value: 'mistral', label: 'Mistral AI' },
-    { value: 'groq',    label: 'Groq Cloud' },
+    { value: 'groq',    label: 'Groq Cloud (Free)' },
+    { value: 'grok',    label: 'xAI Grok' },
   ];
   extra.forEach(p => {
     const o = document.createElement('option');
@@ -1362,11 +2260,25 @@ async function handleFiles(fileList) {
           const prev = await renderVectorPreview(f);
           filePreviewMap[getFileKey(f)] = prev;
           const el = document.getElementById(fid);
-          if (el) { el.classList.add('done'); el.querySelector('.ufi-status').textContent = '✅'; }
+          if (el) {
+            el.classList.add('done');
+            el.querySelector('.ufi-status').textContent = '✅';
+            // Update preview thumbnail immediately
+            renderPreviews();
+          }
         } catch(e) {
-          filePreviewMap[getFileKey(f)] = null;
-          const el = document.getElementById(fid);
-          if (el) { el.classList.add('err'); el.querySelector('.ufi-status').textContent = '⚠️'; }
+          // Even if renderVectorPreview failed, check if processEPSFile got a preview
+          const key = getFileKey(f);
+          if (filePreviewMap[key]) {
+            // Preview was set by processEPSFile internally
+            const el = document.getElementById(fid);
+            if (el) { el.classList.add('done'); el.querySelector('.ufi-status').textContent = '✅'; }
+            renderPreviews();
+          } else {
+            filePreviewMap[key] = null;
+            const el = document.getElementById(fid);
+            if (el) { el.classList.add('err'); el.querySelector('.ufi-status').textContent = '⚠️'; }
+          }
         }
       } else {
         const el = document.getElementById(fid);
@@ -1391,7 +2303,222 @@ function isVectorFile(f) {
     f.type === 'application/illustrator';
 }
 
-async function renderVectorPreview(file) {
+// ===== EPS / VECTOR FILE UTILITIES =====
+
+// Parse EPS/AI DSC headers to extract metadata
+function parseEPSHeaders(text) {
+  const lines = text.split('\n').slice(0, 80); // only first 80 lines have DSC comments
+  const get = (key) => {
+    const line = lines.find(l => l.startsWith(`%%${key}:`));
+    return line ? line.replace(`%%${key}:`, '').trim() : '';
+  };
+  const getAll = (key) => lines.filter(l => l.startsWith(`%%${key}:`))
+    .map(l => l.replace(`%%${key}:`, '').trim()).join(', ');
+
+  const bbox = get('BoundingBox') || get('HiResBoundingBox');
+  let width = 0, height = 0;
+  if (bbox) {
+    const parts = bbox.split(/\s+/);
+    if (parts.length === 4) {
+      width  = Math.round((parseFloat(parts[2]) - parseFloat(parts[0])) / 72 * 25.4); // mm
+      height = Math.round((parseFloat(parts[3]) - parseFloat(parts[1])) / 72 * 25.4);
+    }
+  }
+
+  // Extract all colors mentioned in PostScript
+  const colorMatches = text.match(/\d+(?:\.\d+)?\s+\d+(?:\.\d+)?\s+\d+(?:\.\d+)?\s+setrgbcolor/g) || [];
+  const colors = [...new Set(colorMatches.slice(0, 8))];
+
+  // Count paths/objects as complexity indicator
+  const pathCount  = (text.match(/\bnewpath\b/g) || []).length;
+  const layerCount = (text.match(/%%Layer:|\/Layer\b/g) || []).length;
+  const textItems  = (text.match(/\bshow\b|\bstringwidth\b/g) || []).length;
+  const hasGradient = /\baxialshading\b|\bradialshading\b/i.test(text);
+  const hasMask     = /\bclip\b|\beoclip\b/i.test(text);
+
+  return {
+    title:       get('Title'),
+    creator:     get('Creator'),
+    creationDate:get('CreationDate'),
+    colorMode:   get('DocumentProcessColors') || get('DocumentCustomColors') || '',
+    width, height, colors, pathCount, layerCount, textItems, hasGradient, hasMask,
+    isAI:        text.includes('%%+ procset Adobe_Illustrator') || text.includes('Adobe Illustrator'),
+    isEPS:       text.startsWith('%!PS-Adobe'),
+  };
+}
+
+// Clean filename into readable subject hint
+function filenameToSubject(name) {
+  return name
+    .replace(/\.[^/.]+$/, '')           // remove extension
+    .replace(/[_\-]+/g, ' ')            // underscores → spaces
+    .replace(/([a-z])([A-Z])/g, '$1 $2') // camelCase → spaces
+    .replace(/\d{8,}/g, '')             // remove long numeric IDs
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Build a rich text description of an EPS file for AI
+function buildEPSTextContext(file, epsText) {
+  const h     = parseEPSHeaders(epsText);
+  const subj  = filenameToSubject(file.name);
+  const sizeKB = (file.size / 1024).toFixed(1);
+  const dimStr = (h.width && h.height) ? `${h.width}×${h.height} mm` : 'unknown dimensions';
+
+  const lines = [
+    `You are analyzing an EPS vector file to generate professional stock metadata.`,
+    `The file cannot be rendered as an image in this browser. Use all the technical and contextual information below to generate accurate, professional metadata.`,
+    ``,
+    `=== FILE INFORMATION ===`,
+    `Filename: ${file.name}`,
+    `Subject hint from filename: "${subj}"`,
+    `File size: ${sizeKB} KB`,
+    `Format: ${h.isAI ? 'Adobe Illustrator (AI/EPS)' : 'Encapsulated PostScript (EPS)'}`,
+    h.title        ? `Embedded title: ${h.title}`         : '',
+    h.creator      ? `Created with: ${h.creator}`         : '',
+    h.creationDate ? `Creation date: ${h.creationDate}`   : '',
+    `Dimensions: ${dimStr}`,
+    ``,
+    `=== VECTOR CONTENT ANALYSIS ===`,
+    h.pathCount    ? `Vector paths/objects: ${h.pathCount} (complexity indicator)`  : '',
+    h.layerCount   ? `Layers found: ${h.layerCount}`      : '',
+    h.textItems    ? `Text elements present: ${h.textItems}` : '',
+    h.hasGradient  ? `Contains gradient fills (axial/radial shading)` : '',
+    h.hasMask      ? `Contains clipping masks` : '',
+    h.colorMode    ? `Color mode/inks: ${h.colorMode}`    : '',
+    h.colors.length? `Sample PostScript colors found: ${h.colors.length} unique color definitions` : '',
+    ``,
+    `=== FIRST 1000 CHARS OF EPS CONTENT (for context) ===`,
+    epsText.substring(0, 1000),
+    ``,
+    `=== INSTRUCTIONS ===`,
+    `Based on all the above information — especially the filename subject hint, embedded title, and vector content analysis — generate professional stock metadata.`,
+    `Make reasonable, accurate inferences from the filename and technical data. Do NOT invent unrelated subjects.`,
+    `If the filename suggests a specific theme (e.g. "butterfly", "floral", "business", "abstract"), use that as the main subject.`,
+  ].filter(Boolean).join('\n');
+
+  return lines;
+}
+
+// Try PDF.js first (works for some EPS), then fall back to text-based analysis
+// ===== LOCAL GHOSTSCRIPT SERVER CONFIG =====
+// ===== EPS PROCESSING — 4 STRATEGIES, NO SERVER NEEDED =====
+
+// Strategy 1: Extract embedded JPEG/TIFF preview from EPS binary
+// Adobe Illustrator embeds a full JPEG preview in every EPS file
+// Format: %BeginPreview ... binary JPEG data ... %EndPreview
+// OR: TIFF preview in the EPS binary header (EPSI format)
+async function processEPSViaEmbeddedPreview(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (e) => {
+      try {
+        const buf = new Uint8Array(e.target.result);
+
+        // ── Method A: DOS EPS binary header (most Adobe AI EPS files) ──
+        // Header: C5D0D3C6 (magic) + 4 bytes PS offset + 4 bytes PS length
+        //       + 4 bytes WMF offset + 4 bytes WMF length
+        //       + 4 bytes TIFF offset + 4 bytes TIFF length
+        if (buf[0] === 0xC5 && buf[1] === 0xD0 && buf[2] === 0xD3 && buf[3] === 0xC6) {
+          // Read TIFF section (bytes 20-27)
+          const tiffOff = buf[20] | (buf[21]<<8) | (buf[22]<<16) | (buf[23]<<24);
+          const tiffLen = buf[24] | (buf[25]<<8) | (buf[26]<<16) | (buf[27]<<24);
+          if (tiffOff > 0 && tiffLen > 100) {
+            const tiffData = buf.slice(tiffOff, tiffOff + tiffLen);
+            const dataUrl = tiffToCanvas(tiffData);
+            if (dataUrl) {
+              return resolve({ type: 'image', data: dataUrl.split(',')[1],
+                mimeType: 'image/jpeg', preview: dataUrl, source: 'embedded-tiff' });
+            }
+          }
+        }
+
+        // ── Method B: Search for embedded JPEG (SOI marker FF D8 FF) ──
+        // Adobe Illustrator EPS often contains a JPEG stream after %%BeginPreview
+        const text = new TextDecoder('latin1').decode(buf);
+
+        // Look for %BeginPreview section
+        const previewStart = text.indexOf('%BeginPreview');
+        const previewEnd   = text.indexOf('%EndPreview');
+        if (previewStart !== -1 && previewEnd !== -1) {
+          // Extract hex-encoded lines between BeginPreview and EndPreview
+          const previewSection = text.slice(previewStart, previewEnd);
+          const hexLines = previewSection.split('\n')
+            .filter(l => /^%[0-9A-Fa-f]/.test(l))
+            .map(l => l.replace(/^%/, '').trim());
+          if (hexLines.length > 0) {
+            const hexStr = hexLines.join('');
+            const bytes  = new Uint8Array(hexStr.match(/.{2}/g).map(h => parseInt(h, 16)));
+            // Find JPEG inside
+            const jpegUrl = extractJPEGFromBytes(bytes);
+            if (jpegUrl) {
+              return resolve({ type: 'image', data: jpegUrl.split(',')[1],
+                mimeType: 'image/jpeg', preview: jpegUrl, source: 'embedded-jpeg' });
+            }
+          }
+        }
+
+        // ── Method C: Raw JPEG scan in entire file binary ──
+        const jpegUrl = extractJPEGFromBytes(buf);
+        if (jpegUrl) {
+          return resolve({ type: 'image', data: jpegUrl.split(',')[1],
+            mimeType: 'image/jpeg', preview: jpegUrl, source: 'embedded-jpeg-raw' });
+        }
+
+        reject(new Error('No embedded preview found'));
+      } catch(err) { reject(err); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+// Find and extract first valid JPEG from byte array
+function extractJPEGFromBytes(buf) {
+  for (let i = 0; i < buf.length - 3; i++) {
+    // JPEG SOI marker: FF D8 FF
+    if (buf[i] === 0xFF && buf[i+1] === 0xD8 && buf[i+2] === 0xFF) {
+      // Find JPEG EOI marker: FF D9
+      for (let j = i + 100; j < buf.length - 1; j++) {
+        if (buf[j] === 0xFF && buf[j+1] === 0xD9) {
+          const jpegBytes = buf.slice(i, j + 2);
+          if (jpegBytes.length > 1000) { // sanity check
+            const blob = new Blob([jpegBytes], { type: 'image/jpeg' });
+            const url  = URL.createObjectURL(blob);
+            // Verify it's a valid image by checking dimensions
+            return 'data:image/jpeg;base64,' + uint8ToBase64(jpegBytes);
+          }
+          break;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function uint8ToBase64(bytes) {
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+// Basic TIFF → canvas (handles common AI EPS TIFF previews)
+function tiffToCanvas(tiffData) {
+  try {
+    // Many EPS TIFF previews are actually BMP or raw; try canvas decode via blob
+    const blob   = new Blob([tiffData], { type: 'image/tiff' });
+    const objUrl = URL.createObjectURL(blob);
+    // We can't synchronously decode here — return null, let async method handle
+    URL.revokeObjectURL(objUrl);
+    return null;
+  } catch { return null; }
+}
+
+// Strategy 2: PDF.js render
+async function processEPSViaPDFjs(file) {
   if (!window.pdfjsLib) {
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
     window.pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -1399,32 +2526,149 @@ async function renderVectorPreview(file) {
   }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    reader.onerror = reject;
     reader.onload = async (e) => {
       try {
         const typedArray = new Uint8Array(e.target.result);
-        const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+        const pdf  = await pdfjsLib.getDocument({ data: typedArray }).promise;
         const page = await pdf.getPage(1);
-        const vp = page.getViewport({ scale: 1.5 });
+        const vp   = page.getViewport({ scale: 2.0 }); // higher scale = better quality
         const canvas = document.createElement('canvas');
         canvas.width = vp.width; canvas.height = vp.height;
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
         await page.render({ canvasContext: ctx, viewport: vp }).promise;
-        // Store meta info
         fileMetaMap[getFileKey(file)] = {
-          pages: pdf.numPages,
-          width: Math.round(vp.width / 1.5),
-          height: Math.round(vp.height / 1.5),
-          name: file.name,
-          size: (file.size / 1024).toFixed(1) + ' KB'
+          pages: pdf.numPages, width: Math.round(vp.width/2),
+          height: Math.round(vp.height/2), name: file.name,
+          size: (file.size/1024).toFixed(1)+' KB', source: 'pdfjs'
         };
-        resolve(canvas.toDataURL('image/jpeg', 0.85));
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+        resolve({ type:'image', data:dataUrl.split(',')[1],
+          mimeType:'image/jpeg', preview:dataUrl, source:'pdfjs' });
       } catch(err) { reject(err); }
     };
-    reader.onerror = reject;
     reader.readAsArrayBuffer(file);
   });
 }
+
+// Strategy 3: Local Ghostscript server (if running)
+const EPS_SERVER = 'http://localhost:7842';
+let epsServerAvailable = null;
+
+async function checkEPSServer() {
+  if (epsServerAvailable !== null) return epsServerAvailable;
+  try {
+    const res  = await fetch(`${EPS_SERVER}/health`, { signal: AbortSignal.timeout(1500) });
+    const data = await res.json();
+    epsServerAvailable = data.status === 'ok' && data.ghostscript_ok;
+  } catch { epsServerAvailable = false; }
+  updateServerStatus();
+  return epsServerAvailable;
+}
+
+function updateServerStatus() {
+  const el = document.getElementById('epsServerStatus');
+  if (!el) return;
+  if (epsServerAvailable === true)  { el.textContent = '🟢 EPS Server'; el.style.color = 'var(--green)'; }
+  if (epsServerAvailable === false) { el.style.display = 'none'; } // hide if not running — not needed anymore
+  if (epsServerAvailable === null)  { el.style.display = 'none'; }
+}
+
+async function processEPSViaServer(file) {
+  const b64 = await fileToBase64(file);
+  const res  = await fetch(`${EPS_SERVER}/convert`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: b64, filename: file.name, dpi: 150, maxDim: 1200 }),
+    signal: AbortSignal.timeout(90000),
+  });
+  if (!res.ok) throw new Error(`Server ${res.status}`);
+  const data = await res.json();
+  if (!data.success || !data.png) throw new Error(data.error || 'No PNG');
+  const preview = `data:image/png;base64,${data.png}`;
+  fileMetaMap[getFileKey(file)] = { name: file.name, size: (file.size/1024).toFixed(1)+' KB',
+    width: data.width, height: data.height, source: 'ghostscript' };
+  return { type:'image', data:data.png, mimeType:'image/png',
+    preview, source:'ghostscript', epsText: data.epsText||'', epsMeta: data.epsMeta||{} };
+}
+
+// Strategy 4: EPS text analysis (always works)
+async function processEPSViaText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = (e) => {
+      const epsText = e.target.result || '';
+      resolve({ type: 'text', context: buildEPSTextContext(file, epsText) });
+    };
+    reader.readAsText(file, 'latin1');
+  });
+}
+
+// ===== MASTER EPS PROCESSOR =====
+// Order: Embedded Preview → PDF.js → Ghostscript Server → Text Analysis
+async function processEPSFile(file) {
+  const key = getFileKey(file);
+
+  // Strategy 1: Extract embedded preview (fastest, no network, best for AI EPS)
+  try {
+    const result = await processEPSViaEmbeddedPreview(file);
+    await validateImage(result.preview);
+    filePreviewMap[key] = result.preview;
+    console.log('EPS: embedded preview ✅', result.source);
+    return result;
+  } catch(e) { console.warn('EPS embedded preview:', e.message); }
+
+  // Strategy 2: PDF.js
+  try {
+    const result = await processEPSViaPDFjs(file);
+    filePreviewMap[key] = result.preview;
+    console.log('EPS: PDF.js ✅');
+    return result;
+  } catch(e) { console.warn('EPS PDF.js:', e.message); }
+
+  // Strategy 3: Local Ghostscript server (optional bonus)
+  const serverOk = await checkEPSServer();
+  if (serverOk) {
+    try {
+      const result = await processEPSViaServer(file);
+      filePreviewMap[key] = result.preview;
+      console.log('EPS: Ghostscript ✅');
+      return result;
+    } catch(e) { console.warn('EPS server:', e.message); }
+  }
+
+  // Strategy 4: Text analysis (always works, no image)
+  console.log('EPS: text analysis mode');
+  filePreviewMap[key] = null;
+  return await processEPSViaText(file);
+}
+
+// Validate image loads correctly
+function validateImage(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => (img.width > 10 && img.height > 10) ? resolve() : reject(new Error('too small'));
+    img.onerror = () => reject(new Error('load failed'));
+    img.src = dataUrl;
+    setTimeout(() => reject(new Error('timeout')), 5000);
+  });
+}
+
+async function renderVectorPreview(file) {
+  const result = await processEPSFile(file);
+  const key = getFileKey(file);
+  if (result.type === 'image') {
+    filePreviewMap[key] = result.preview;
+    return result.preview;
+  }
+  // text-mode: no image, but store null so caller knows
+  filePreviewMap[key] = null;
+  throw new Error('text-mode');
+}
+
+
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -1459,12 +2703,19 @@ function renderPreviews() {
     const src = getPreviewSrc(f);
     const ext = f.name.split('.').pop().toUpperCase();
     const isVec = isVectorFile(f);
-    const hasPreview = isVec && filePreviewMap[getFileKey(f)];
-    return `<div class="preview-item" id="prev-${i}" title="${f.name}" onclick="isVectorFile(files[${i}]) ? openVectorModal(${i}) : null">
+    const previewKey = getFileKey(f);
+    const hasPreview = isVec && filePreviewMap[previewKey];
+    const isProcessing = isVec && !(previewKey in Object.fromEntries(Object.keys(filePreviewMap).map(k=>[k,true])));
+    return `<div class="preview-item" id="prev-${i}" title="${f.name}" onclick="isVectorFile(files[${i}]) && filePreviewMap[getFileKey(files[${i}])] ? openVectorModal(${i}) : null">
       ${src
-        ? `<img src="${src}" alt="${f.name}" style="width:100%;height:100%;object-fit:cover;">`
+        ? `<img src="${src}" alt="${f.name}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`
         : isVec
-          ? `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:4px;font-size:10px;color:var(--muted);padding:4px;"><span style="font-size:20px;">📐</span><span style="font-family:'Space Mono',monospace;color:var(--accent);font-size:9px;">${ext}</span><span style="font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;text-align:center;">${f.name}</span></div>`
+          ? `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:4px;padding:4px;background:var(--panel);">
+               <span style="font-size:22px;">📐</span>
+               <span style="font-family:'Space Mono',monospace;color:var(--accent);font-size:9px;font-weight:700;">${ext}</span>
+               <span style="font-size:8px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:90%;text-align:center;">${f.name}</span>
+               <span style="font-size:8px;color:var(--accent2);">Extracting…</span>
+             </div>`
           : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:24px;">📄</div>`}
       ${isVec && hasPreview ? `<div class="processing-badge">${ext}</div>` : ''}
       <span class="img-pct-badge" id="pct-${i}">0%</span>
@@ -1492,6 +2743,11 @@ function clearAll() {
   document.getElementById('resultCount').textContent = '0';
   document.getElementById('dlZipBtn').style.display = 'none';
   document.getElementById('dlCsvBtn').style.display = 'none';
+  document.getElementById('dlAllPlatformsBtn').style.display = 'none';
+  document.getElementById('dlPromptsBtn').style.display = 'none';
+  document.getElementById('filterBar').style.display = 'none';
+  document.getElementById('findReplaceBar').style.display = 'none';
+  document.getElementById('bulkActionsBar').classList.remove('show');
   document.getElementById('progressWrap').classList.remove('show');
   document.getElementById('processingItemBar').classList.remove('show');
   showToast('🗑 Cleared all files and results');
@@ -1574,38 +2830,54 @@ async function startGeneration() {
       if (pctBadge) pctBadge.textContent = '⏳';
       if (pFill) pFill.style.width = '20%';
       try {
-        let base64, mimeType;
+        let base64 = null, mimeType = null, textContext = null, epsRenderedBy = null;
         const key = getFileKey(f);
+
         if (isVectorFile(f) && filePreviewMap[key]) {
+          // Already have a rendered preview from upload time
           base64 = filePreviewMap[key].split(',')[1];
           mimeType = 'image/jpeg';
         } else if (f.type.startsWith('image/')) {
-          // Compress image before sending — fixes Gemini "Unable to process" + reduces memory
+          // Regular image — compress before sending
           base64 = await compressImageFile(f, 1200, 0.82);
           mimeType = 'image/jpeg';
+        } else if (isVectorFile(f)) {
+          // EPS/AI — try image render first, then text-mode fallback
+          if (pctBadge) pctBadge.textContent = '🔍';
+          document.getElementById('processingItemName').textContent = `Analyzing EPS: ${f.name}`;
+          const epsResult = await processEPSFile(f);
+          if (epsResult.type === 'image') {
+            base64 = epsResult.data;
+            mimeType = epsResult.mimeType || 'image/png';
+            filePreviewMap[key] = epsResult.preview;
+            epsRenderedBy = epsResult.source || (epsResult.preview ? 'pdfjs' : 'unknown');
+            // Also pass epsText as bonus context if server provided it
+            if (epsResult.epsText) textContext = buildEPSTextContext(f, epsResult.epsText);
+          } else {
+            // Text-mode: rich EPS context, no image
+            textContext = epsResult.context;
+            filePreviewMap[key] = null;
+            epsRenderedBy = 'text';
+          }
         } else {
+          // Unknown type — try compression, fallback raw
           try {
-            const prev = await renderVectorPreview(f);
-            filePreviewMap[key] = prev;
-            base64 = prev.split(',')[1];
+            base64 = await compressImageFile(f, 1200, 0.82);
             mimeType = 'image/jpeg';
           } catch {
-            // EPS/AI file couldn't be rendered — send as raw and let AI handle it
-            try {
-              base64 = await fileToBase64(f);
-              mimeType = f.type || 'application/octet-stream';
-            } catch(e2) {
-              throw new Error(`EPS/Vector preview ব্যর্থ হয়েছে: ${e2.message}`);
-            }
+            base64 = await fileToBase64(f);
+            mimeType = f.type || 'application/octet-stream';
           }
         }
+
+        if (pFill) pFill.style.width = '60%';
         const prompt = buildPrompt(titleLen, descLen, kwCount, currentPlatform);
-        const metadata = await callAI(provider, apiKey, base64, mimeType, prompt);
-        const previewSrc = (mimeType === 'image/jpeg' && isVectorFile(f))
-          ? filePreviewMap[key]
-          : `data:image/jpeg;base64,${base64}`;
-        // Store only a small thumbnail for display, free the full base64 to save memory
-        results.push({ file: f, base64, mimeType, previewSrc, metadata });
+        const fullPromptUsed = textContext ? `${textContext}\n\n${'─'.repeat(40)}\n\n${prompt}` : prompt;
+        const metadata = await callAI(provider, apiKey, base64, mimeType, prompt, textContext);
+        const previewSrc = base64
+          ? `data:image/jpeg;base64,${base64}`
+          : (filePreviewMap[key] || null);
+        results.push({ file: f, base64, mimeType, previewSrc, textMode: epsRenderedBy === 'text', epsRendered: epsRenderedBy, promptUsed: fullPromptUsed, metadata });
         // Clear full base64 from memory after render — keeps browser fast on large batches
         // We keep it only if needed for retry; previewSrc is a compressed copy already
         renderResult(results[results.length - 1], results.length - 1);
@@ -1630,9 +2902,12 @@ async function startGeneration() {
       if (results.length > 0) {
         document.getElementById('dlZipBtn').style.display = 'flex';
         document.getElementById('dlCsvBtn').style.display = 'flex';
+        document.getElementById('dlAllPlatformsBtn').style.display = 'flex';
+        document.getElementById('dlPromptsBtn').style.display = 'flex';
+        document.getElementById('filterBar').style.display = 'flex';
       }
       updateProgress(Math.round((completed / total) * 100), `Processing ${completed} of ${total}…`);
-      await sleep(100);
+      await sleep(40);
     }
   }
 
@@ -1701,7 +2976,7 @@ async function autoRetryUntilDone() {
     for (const item of stillFailed) {
       const idx = results.indexOf(item);
       try {
-        let base64 = null, mimeType = null;
+        let base64 = null, mimeType = null, textContext = null;
         const key = getFileKey(item.file);
         if (isVectorFile(item.file) && filePreviewMap[key]) {
           base64 = filePreviewMap[key].split(',')[1];
@@ -1709,29 +2984,36 @@ async function autoRetryUntilDone() {
         } else if (item.file.type.startsWith('image/')) {
           base64 = await compressImageFile(item.file, 1200, 0.82);
           mimeType = 'image/jpeg';
+        } else if (isVectorFile(item.file)) {
+          const epsResult = await processEPSFile(item.file);
+          if (epsResult.type === 'image') {
+            base64 = epsResult.data; mimeType = 'image/jpeg';
+            filePreviewMap[key] = epsResult.preview;
+          } else { textContext = epsResult.context; }
         } else {
           base64 = await fileToBase64(item.file);
           mimeType = item.file.type;
         }
-        const metadata = await callAI(provider, apiKey, base64, mimeType, prompt);
-        const previewSrc = `data:image/jpeg;base64,${base64}`;
+        const metadata = await callAI(provider, apiKey, base64, mimeType, prompt, textContext);
+        const previewSrc = base64 ? `data:image/jpeg;base64,${base64}` : (filePreviewMap[key] || null);
         results[idx].metadata = metadata;
         results[idx].base64 = base64;
         results[idx].mimeType = mimeType;
         results[idx].previewSrc = previewSrc;
+        results[idx].promptUsed = textContext ? `${textContext}\n\n${'─'.repeat(40)}\n\n${prompt}` : prompt;
         document.getElementById(`result-${idx}`)?.remove();
         renderResult(results[idx], idx);
       } catch(e) {
         results[idx].metadata = { error: e.message, title: 'Error', description: e.message, keywords: [] };
       }
-      await sleep(400);
+      await sleep(200);
     }
 
     const remaining = results.filter(r => r.metadata?.error);
     document.getElementById('failedCount').textContent = remaining.length;
     if (remaining.length === 0) break;
     // Wait before next round
-    await sleep(2000);
+    await sleep(1200);
   }
 
   const finalFailed = results.filter(r => r.metadata?.error);
@@ -1754,6 +3036,95 @@ async function autoRetryUntilDone() {
 }
 
 function buildPrompt(titleLen, descLen, kwCount, platform) {
+  // ===== DEDICATED SHUTTERSTOCK PROMPT (strict rules) =====
+  if (platform === 'shutterstock') {
+    return `You are a professional Shutterstock Metadata Expert.
+Analyze the uploaded design/image carefully and generate Shutterstock-ready metadata.
+Follow these strict rules:
+
+TITLE RULES:
+- Create a natural, professional title.
+- 70-120 characters preferred.
+- Start with the main subject.
+- Include style and design type.
+- Do not use keyword stuffing.
+- Do not repeat words unnecessarily.
+- Title must exactly match the visible content.
+
+DESCRIPTION RULES:
+- Write 1 professional paragraph.
+- Clearly describe what is visible in the image.
+- Mention design style, visual elements, colors, composition and purpose.
+- Do not mention anything that is not visible.
+- Do not add false details.
+- Description must naturally match the artwork.
+- 30-80 words preferred.
+
+CATEGORY RULES:
+Choose ONLY the most accurate Shutterstock category.
+Category Selection Guide:
+If typography, lettering, calligraphy, logo style, vector elements:
+Graphic Resources
+If abstract shapes, patterns, textures:
+Abstract
+If illustrations, drawings, cartoons:
+Illustrations/Clip-Art
+If nature scenes:
+Nature
+If business concepts:
+Business/Finance
+If technology concepts:
+Technology
+If food items:
+Food and Drink
+Never choose categories that are unrelated to the visible image.
+
+KEYWORD RULES:
+Generate exactly ${kwCount} highly relevant keywords, ranked in 3 tiers (most important first — order matters for search ranking):
+
+TIER 1 — BEST keywords (first ~35%):
+The strongest, highest-search-volume terms — main subject + most defining style trait. These are what buyers type first.
+
+TIER 2 — MIDDLE/supporting keywords (next ~35%):
+Style descriptors, visible colors, composition, mood, secondary visible elements, design technique terms.
+
+TIER 3 — ACTUAL/long-tail keywords (final ~30%):
+Specific use-case phrases, niche/industry terms, 2-3 word descriptive combinations.
+
+STRICTLY AVOID:
+- Brand names
+- Trademark names
+- Celebrity names
+- Irrelevant objects
+- Colors not visible
+- Styles not visible
+- Duplicate keywords
+- Spam keywords
+- Misleading keywords
+
+ACCEPTANCE RULES:
+- Every keyword must be visible, relevant or directly related.
+- Metadata must match the image 100%.
+- Do not invent details.
+- Do not add objects that are not present.
+- Prioritize Shutterstock acceptance and search relevance.
+
+ALSO generate an AI-image-recreation prompt:
+- Write a detailed prompt (for Midjourney/DALL-E/Stable Diffusion style tools) that could be used to recreate this exact image with an AI image generator.
+- Include: subject, art style, color palette, composition, lighting, mood, rendering technique — everything needed to reproduce it visually.
+- This is SEPARATE from the stock metadata — it is a reverse-engineered generation prompt, not a stock listing field.
+
+Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
+{
+  "title": "title here",
+  "description": "description here",
+  "keywords": ["keyword1", "keyword2", "...", "keyword${kwCount}"],
+  "category": "Category Name",
+  "category_number": 1,
+  "recreation_prompt": "detailed AI image generation prompt to recreate this exact image"
+}`;
+  }
+
   const platformCategory = {
     adobe:       'Adobe Stock Category (use official Adobe Stock category name, category_number 1–28)',
     shutterstock:'Shutterstock Category (use official Shutterstock category name)',
@@ -1765,63 +3136,271 @@ function buildPrompt(titleLen, descLen, kwCount, platform) {
     general:     'Adobe Stock Category + Shutterstock Category (pick best match)'
   };
   const platformFocus = {
-    adobe:       'Optimize strictly for Adobe Stock. Title 60-120 chars, high buyer intent, main keyword first.',
+    adobe:       'Optimize strictly for Adobe Stock ranking and discoverability. Adobe Stock\'s search algorithm heavily weights: (1) exact keyword match in title, (2) keyword order/position, (3) keyword relevance density. Title must lead with the single highest-value search term. Avoid keyword repetition between title and keywords list — maximize unique keyword coverage instead.',
     shutterstock:'Optimize strictly for Shutterstock. Clear searchable editorial-style title.',
     freepik:     'Optimize for Freepik. Creative, design-focused, style keywords prominent.',
     getty:       'Optimize for Getty Images. Professional, editorial-quality, precise language.',
     istock:      'Optimize for iStock (Getty standards). Commercial use focus.',
     dreamstime:  'Optimize for Dreamstime. Comprehensive, broad keyword sets.',
     vecteezy:    'Optimize for Vecteezy. Vector and illustration focused metadata.',
-    general:     'Optimize for ALL major stock platforms (Adobe Stock, Shutterstock, Getty, Freepik).'
+    general:     'Optimize for ALL major stock platforms (Adobe Stock, Shutterstock, Getty, Freepik), with special attention to Adobe Stock\'s ranking algorithm since it rewards precise keyword targeting most heavily.'
   };
-  return `You are a professional stock image SEO expert specializing in Adobe Stock and Shutterstock.
+  // Adobe Stock: custom SEO Ultimate Prompt v6
+  if (platform === 'adobe') {
+    return `You are an Elite Adobe Stock SEO Expert, Commercial Metadata Strategist, Search Intent Analyst, Semantic SEO Specialist, AI Vision Expert, and Global Stock Marketplace Consultant.
 
-Analyze this image carefully: identify the design topic, style (minimalist/3D/flat/realistic/line art), main object, and background type.
+Your mission is to generate premium Adobe Stock metadata that maximizes discoverability, buyer search intent, semantic relevance, click-through rate (CTR), and long-term download potential while fully complying with Adobe Stock Contributor Guidelines.
+
+Your goal is NOT simply to write metadata.
+Your goal is to think like a professional Adobe Stock buyer, SEO expert, and marketplace search algorithm.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 1 — IMAGE ANALYSIS
+
+Carefully analyze the uploaded image, vector, illustration, or AI artwork.
+Identify only what is actually visible.
+
+Analyze:
+• Main Subject • Secondary Subjects • Objects • Design Style • Artistic Style • Illustration Type • Composition • Perspective • Background • Pattern • Shapes • Colors • Texture • Mood • Emotion (if visually obvious) • Industry • Audience • Commercial Usage • Marketing Usage • Business Usage • Print Usage • Digital Usage • Seasonal Relevance • Cultural Relevance
+
+Never guess. Never add objects that do not exist.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 2 — LIVE MARKET RESEARCH & TREND ANALYSIS
+
+If live web access is available:
+Research current commercial search trends related to the uploaded asset.
+Analyze: Current commercial search trends, Buyer search intent, Search demand, Commercial relevance, Current design trends, Industry terminology, Marketing terminology, Business terminology, Seasonal demand (if relevant).
+
+If live web access is NOT available:
+Generate metadata using the strongest commercially relevant keywords based on buyer search intent, semantic SEO, and Adobe Stock best practices.
+Never invent trending keywords.
+
+IMPORTANT RULES:
+• Include trending keywords ONLY if they accurately describe the uploaded asset.
+• Never force a trending keyword.
+• Relevance is always more important than popularity.
+• Never include keywords only because they are popular.
+• Every keyword must improve discoverability.
+• Every keyword must improve buyer search intent.
+• Every keyword must have commercial value.
+• Avoid generic keywords. Avoid filler keywords. Avoid weak keywords. Avoid misleading keywords.
+• Prioritize keywords that real Adobe Stock buyers are likely to search.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PHASE 3 — KEYWORD STRATEGY
+
+Generate EXACTLY ${kwCount} UNIQUE keywords.
+
+Keyword Structure:
+
+Keywords 1–10: Strongest commercial keywords, highest buyer search intent, highest ranking potential. Include approximately 7–10 trending commercial keywords ONLY if relevant.
+
+Keywords 11–20: Core subject keywords, primary SEO keywords, main object keywords.
+
+Keywords 21–30: Semantic SEO keywords, alternative search phrases, industry terminology, design terminology.
+
+Keywords 31–40: Commercial usage, marketing, branding, advertising, print, web, social media, packaging, business.
+
+Keywords 41–${kwCount}: Long-tail keywords, supporting semantic keywords, natural search variations, contextual buyer keywords.
+
+KEYWORD RULES:
+• Generate EXACTLY ${kwCount} keywords.
+• Every keyword must be unique. No duplicate keywords.
+• No irrelevant keywords. No keyword stuffing. No filler keywords. No misleading keywords.
+• Use singular words unless plural is the standard search term.
+• Include only keywords visible or directly implied by the asset.
+• Every keyword must earn its place.
+• Every keyword must contribute to SEO or buyer intent.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TITLE RULES (max ${titleLen} chars):
+• 60–80 characters
+• Natural English
+• Start with the strongest commercial keyword
+• Clearly describe the asset
+• Human readable, professional, buyer-focused
+• No keyword stuffing
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DESCRIPTION RULES (max ${descLen} chars):
+• 20–40 words
+• Natural English
+• Describe the subject, mention style
+• Mention commercial usage when appropriate
+• Human readable, SEO friendly
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATEGORY
+Select the single most accurate Adobe Stock category (official Adobe Stock category name, category_number 1–28).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL QUALITY CHECK — verify before output:
+✓ Exactly ${kwCount} keywords
+✓ No duplicate keywords
+✓ No irrelevant keywords
+✓ No wasted keyword slots
+✓ Strong buyer search intent
+✓ Strong commercial relevance
+✓ Strong semantic SEO
+✓ Natural English
+✓ Adobe Stock compliant
+✓ Human readable
+✓ Upload-ready metadata
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ALSO generate an AI-image-recreation prompt (for Midjourney/DALL-E/Stable Diffusion) that could recreate this exact image. Include: subject, art style, color palette, composition, lighting, mood, rendering technique.
+
+Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
+{
+  "title": "title here",
+  "description": "description here",
+  "keywords": ["keyword1", "keyword2", "...", "keyword${kwCount}"],
+  "category": "Adobe Stock Category Name",
+  "category_number": 1,
+  "recreation_prompt": "detailed AI image generation prompt to recreate this exact image"
+}\`;
+  }
+
+  // Other platforms: general optimized prompt
+  return `You are an elite professional stock metadata strategist helping contributors rank in TOP search results on major stock platforms.
+
+Carefully analyze the uploaded image pixel by pixel. Identify: main subject, secondary elements, art style, color palette, composition, mood, and commercial use cases. Metadata must be 100% accurate — never invent details not visible in the image.
 
 Platform: ${platform.toUpperCase()}
 ${platformFocus[platform] || platformFocus.general}
 
-TITLE RULES (max ${titleLen} chars):
-- Start immediately with the MOST IMPORTANT main keyword
-- 60-120 characters ideally
-- High buyer intent language
-- SEO-friendly natural English
-- Include style + subject + use-case hint
+TITLE (max ${titleLen} chars): Start with strongest keyword. Natural, professional, buyer-focused. Include subject + style + design type.
 
-DESCRIPTION RULES (max ${descLen} chars):
-- 2-3 lines of natural English
-- Mention real-world use cases: UI design, social media, web, print, marketing, logo, branding
-- Commercial-use focused, no keyword stuffing
+DESCRIPTION (max ${descLen} chars): 1-3 sentences. Describe subject, style, colors, composition, commercial use. No keyword stuffing.
 
-KEYWORD RULES (exactly ${kwCount} keywords):
-- Keywords 1-10: HIGH SEARCH VOLUME (broadest, most important first)
-- Keywords 11-20: RELATED / NICHE keywords
-- Keywords 21-${kwCount}: SUPPORTING / LONG-TAIL keywords
-- No duplicates, single words or short 2-3 word phrases
-- Focus: logo, UI, marketing, template, branding, commercial use
+KEYWORDS — exactly ${kwCount} keywords, 3-tier structure:
+TIER 1 (~35%): Highest-value, highest-search-volume core terms.
+TIER 2 (~35%): Style, color, mood, secondary elements, design technique terms.
+TIER 3 (~30%): Long-tail phrases, industry/niche terms, specific use-cases.
+Rules: No duplicates, no brand names, no invisible elements, no spam.
 
 CATEGORY: ${platformCategory[platform] || platformCategory.general}
 
+ALSO generate an AI-image-recreation prompt for Midjourney/DALL-E/Stable Diffusion.
+
 Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
 {
-  "title": "SEO title here",
-  "description": "Natural English description here",
-  "keywords": ["keyword1", "keyword2", "keyword3"],
+  "title": "title here",
+  "description": "description here",
+  "keywords": ["keyword1", "keyword2", "...", "keyword${kwCount}"],
   "category": "Category Name",
-  "category_number": 1
+  "category_number": 1,
+  "recreation_prompt": "detailed AI image generation prompt to recreate this exact image"
 }`;
 }
 
 // ===== UNIVERSAL AI API CALL =====
-async function callAI(provider, apiKey, base64, mimeType, prompt) {
+async function callAI(provider, apiKey, base64, mimeType, prompt, textContext) {
   const model = getSelectedModel();
-  if (provider === 'gemini')     return callGemini(apiKey, base64, mimeType, prompt, model);
-  if (provider === 'openai')     return callOpenAI(apiKey, base64, mimeType, prompt, model);
-  if (provider === 'openrouter') return callOpenRouter(apiKey, base64, mimeType, prompt, model);
-  if (provider === 'mistral')    return callMistral(apiKey, base64, mimeType, prompt, model);
-  if (provider === 'groq')       return callGroq(apiKey, base64, mimeType, prompt, model);
+
+  // Build enriched prompt: always append EPS context when available (image OR text mode)
+  const enrichedPrompt = textContext
+    ? `${textContext}\n\n${'─'.repeat(40)}\n\n${prompt}`
+    : prompt;
+
+  // Text-only mode (no image available)
+  if (!base64) {
+    if (provider === 'gemini')     return callGeminiText(apiKey, enrichedPrompt, model);
+    if (provider === 'openai')     return callOpenAIText(apiKey, enrichedPrompt, model);
+    if (provider === 'openrouter') return callOpenRouterText(apiKey, enrichedPrompt, model);
+    if (provider === 'mistral')    return callMistralText(apiKey, enrichedPrompt, model);
+    if (provider === 'groq')       return callGroqText(apiKey, enrichedPrompt, model);
+    if (provider === 'grok')       return callGrokText(apiKey, enrichedPrompt, model);
+  }
+
+  // Image mode — pass enrichedPrompt (includes EPS context if from Ghostscript server)
+  if (provider === 'gemini')     return callGemini(apiKey, base64, mimeType, enrichedPrompt, model);
+  if (provider === 'openai')     return callOpenAI(apiKey, base64, mimeType, enrichedPrompt, model);
+  if (provider === 'openrouter') return callOpenRouter(apiKey, base64, mimeType, enrichedPrompt, model);
+  if (provider === 'mistral')    return callMistral(apiKey, base64, mimeType, enrichedPrompt, model);
+  if (provider === 'groq')       return callGroq(apiKey, base64, mimeType, enrichedPrompt, model);
+  if (provider === 'grok')       return callGrok(apiKey, base64, mimeType, enrichedPrompt, model);
   throw new Error('Unknown provider: ' + provider);
 }
+
+// ===== TEXT-ONLY AI CALLS (for EPS without renderable image) =====
+async function callGeminiText(apiKey, prompt, model) {
+  model = model || 'gemini-2.0-flash';
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.6, maxOutputTokens: 2000 }
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Gemini error ' + res.status); }
+  const data = await res.json();
+  return parseJSON(data.candidates?.[0]?.content?.parts?.[0]?.text || '');
+}
+async function callOpenAIText(apiKey, prompt, model) {
+  model = model || 'gpt-4o';
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 2000, temperature: 0.6
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'OpenAI error ' + res.status); }
+  const data = await res.json();
+  return parseJSON(data.choices?.[0]?.message?.content || '');
+}
+async function callOpenRouterText(apiKey, prompt, model) {
+  model = model || 'openai/gpt-4o';
+  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`, 'HTTP-Referer': window.location.href, 'X-Title': 'ROBI Graphics Metadata Generator' },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 2000
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'OpenRouter error ' + res.status); }
+  const data = await res.json();
+  return parseJSON(data.choices?.[0]?.message?.content || '');
+}
+async function callMistralText(apiKey, prompt, model) {
+  model = model || 'mistral-large-latest';
+  const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 2000, temperature: 0.6
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Mistral error ' + res.status); }
+  const data = await res.json();
+  return parseJSON(data.choices?.[0]?.message?.content || '');
+}
+async function callGroqText(apiKey, prompt, model) {
+  model = model || 'llama-3.1-8b-instant';
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 2000, temperature: 0.6
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Groq error ' + res.status); }
+  const data = await res.json();
+  return parseJSON(data.choices?.[0]?.message?.content || '');
+}
+
+
 
 async function callGemini(apiKey, base64, mimeType, prompt, model) {
   model = model || 'gemini-2.0-flash';
@@ -1830,7 +3409,7 @@ async function callGemini(apiKey, base64, mimeType, prompt, model) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: mimeType || 'image/jpeg', data: base64 } }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1200 }
+      generationConfig: { temperature: 0.7, maxOutputTokens: 2000 }
     })
   });
   if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Gemini error ' + res.status); }
@@ -1847,7 +3426,7 @@ async function callOpenAI(apiKey, base64, mimeType, prompt, model) {
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageUrl, detail: 'low' } }] }],
-      max_tokens: 1200, temperature: 0.7
+      max_tokens: 2000, temperature: 0.7
     })
   });
   if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'OpenAI error ' + res.status); }
@@ -1864,7 +3443,7 @@ async function callOpenRouter(apiKey, base64, mimeType, prompt, model) {
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageUrl } }] }],
-      max_tokens: 1200
+      max_tokens: 2000
     })
   });
   if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'OpenRouter error ' + res.status); }
@@ -1881,7 +3460,7 @@ async function callMistral(apiKey, base64, mimeType, prompt, model) {
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: imageUrl }] }],
-      max_tokens: 1200, temperature: 0.7
+      max_tokens: 2000, temperature: 0.7
     })
   });
   if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Mistral error ' + res.status); }
@@ -1898,10 +3477,44 @@ async function callGroq(apiKey, base64, mimeType, prompt, model) {
     body: JSON.stringify({
       model,
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageUrl } }] }],
-      max_tokens: 1200, temperature: 0.7
+      max_tokens: 2000, temperature: 0.7
     })
   });
   if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Groq error ' + res.status); }
+  const data = await res.json();
+  return parseJSON(data.choices?.[0]?.message?.content || '');
+}
+
+// ===== GROK (xAI) API CALLS =====
+async function callGrokText(apiKey, prompt, model) {
+  model = model || 'grok-2-1212';
+  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 2000, temperature: 0.7
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Grok error ' + res.status); }
+  const data = await res.json();
+  return parseJSON(data.choices?.[0]?.message?.content || '');
+}
+
+async function callGrok(apiKey, base64, mimeType, prompt, model) {
+  model = model || 'grok-2-vision-1212';
+  const imageUrl = `data:${mimeType || 'image/jpeg'};base64,${base64}`;
+  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: imageUrl } }] }],
+      max_tokens: 2000, temperature: 0.7
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'Grok error ' + res.status); }
   const data = await res.json();
   return parseJSON(data.choices?.[0]?.message?.content || '');
 }
@@ -1937,37 +3550,78 @@ function renderResult(item, idx) {
   const catName = md.category || '';
   const catNum  = md.category_number || '';
 
+  // Quality checks
+  const titleLen = (md.title||'').length;
+  const descLen  = (md.description||'').length;
+  const titleWarn = titleLen > 120;
+  const descWarn  = descLen > 200;
+
+  // Duplicate keyword detection (case-insensitive)
+  const seenKw = new Set();
+  const dupSet = new Set();
+  kws.forEach(k => {
+    const norm = String(k).toLowerCase().trim();
+    if (seenKw.has(norm)) dupSet.add(norm);
+    seenKw.add(norm);
+  });
+  let dupCount = 0;
+  const seenAgain = new Set();
+  kws.forEach(k => {
+    const norm = String(k).toLowerCase().trim();
+    if (dupSet.has(norm)) { if (seenAgain.has(norm)) dupCount++; seenAgain.add(norm); }
+  });
+  const bannedCount = kws.filter(isBannedKeyword).length;
+
+  const kwHtml = kws.map(k => {
+    const norm = String(k).toLowerCase().trim();
+    let cls = 'kw';
+    if (isBannedKeyword(k)) cls += ' kw-banned';
+    else if (dupSet.has(norm)) cls += ' kw-dup';
+    return `<span class="${cls}" title="${isBannedKeyword(k) ? 'Banned/risky word' : (dupSet.has(norm) ? 'Duplicate keyword' : '')}">${k}</span>`;
+  }).join('');
+
   const card = document.createElement('div');
   card.className = 'result-card';
   card.id = `result-${idx}`;
   card.innerHTML = `
+    <input type="checkbox" class="result-checkbox" id="check-${idx}" onchange="toggleResultSelect(${idx})" style="display:${bulkSelectMode ? 'block' : 'none'};">
     ${imgSrc
       ? `<img class="result-thumb" src="${imgSrc}" alt="thumb" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="result-thumb" style="display:none;flex-direction:column;align-items:center;justify-content:center;font-size:20px;gap:3px;"><span>📐</span><span style="font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;">${item.file.name.split('.').pop().toUpperCase()}</span></div>`
       : `<div class="result-thumb" style="display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:20px;gap:3px;"><span>📐</span><span style="font-size:9px;color:var(--muted);font-family:'Space Mono',monospace;">${item.file.name.split('.').pop().toUpperCase()}</span></div>`}
     <div class="result-body">
-      <div class="result-filename">${item.file.name}</div>
+      <div class="result-filename">${item.file.name}${item.textMode ? ' <span style="font-size:10px;background:rgba(168,85,247,0.15);color:#a855f7;border:1px solid rgba(168,85,247,0.3);border-radius:4px;padding:1px 6px;font-family:\'Space Mono\',monospace;">📝 AI Text Analysis</span>' : (item.epsRendered === 'ghostscript' ? ' <span style="font-size:10px;background:rgba(0,255,136,0.12);color:var(--green);border:1px solid rgba(0,255,136,0.3);border-radius:4px;padding:1px 6px;font-family:\'Space Mono\',monospace;">👻 Ghostscript</span>' : item.epsRendered === 'pdfjs' ? ' <span style="font-size:10px;background:rgba(0,229,255,0.1);color:var(--accent);border:1px solid rgba(0,229,255,0.25);border-radius:4px;padding:1px 6px;font-family:\'Space Mono\',monospace;">📄 PDF.js</span>' : '')}</div>
       ${md.error ? `<div style="color:var(--red);font-size:13px;">⚠ ${md.error}</div>` : `
       <div class="result-field">
-        <div class="result-field-label">Title</div>
-        <div class="result-field-text" id="title-${idx}">${md.title||''}</div>
+        <div class="result-field-label">Title <button class="btn-icon-mini" onclick="copyField(${idx},'title')" title="Copy Title">📋</button></div>
+        <div class="result-field-text" id="title-${idx}" contenteditable="true" onblur="saveEditedField(${idx},'title',this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">${md.title||''}</div>
       </div>
       <div class="result-field">
-        <div class="result-field-label">Description</div>
-        <div class="result-field-text desc" id="desc-${idx}">${md.description||''}</div>
+        <div class="result-field-label">Description <button class="btn-icon-mini" onclick="copyField(${idx},'description')" title="Copy Description">📋</button></div>
+        <div class="result-field-text desc" id="desc-${idx}" contenteditable="true" onblur="saveEditedField(${idx},'description',this)">${md.description||''}</div>
       </div>
       ${catName ? `<div class="result-field">
-        <div class="result-field-label">Category</div>
+        <div class="result-field-label">Category <button class="btn-icon-mini" onclick="copyField(${idx},'category')" title="Copy Category">📋</button></div>
         <span class="cat-badge">📂 ${catNum ? '#'+catNum+' · ' : ''}${catName}</span>
       </div>` : ''}
       <div class="result-field">
-        <div class="result-field-label">Keywords</div>
-        <div class="keywords-wrap" id="kw-${idx}">${kws.map(k=>`<span class="kw">${k}</span>`).join('')}</div>
+        <div class="result-field-label">
+          Keywords (${kws.length})
+          <button class="btn-icon-mini" onclick="copyField(${idx},'keywords')" title="Copy Keywords">📋</button>
+          <button class="btn-icon-mini" onclick="openKwEditor(${idx})" title="Edit Keywords" style="color:var(--accent);">✏️</button>
+        </div>
+        <div class="keywords-wrap" id="kw-${idx}">${kwHtml}</div>
       </div>
+      ${md.recreation_prompt ? `<div class="result-field" style="background:rgba(255,193,7,0.06);border:1px solid rgba(255,193,7,0.2);border-radius:8px;padding:10px;margin-top:4px;">
+        <div class="result-field-label" style="color:#ffc107;">🎨 AI Recreation Prompt (CSV-তে যাবে না) <button class="btn-icon-mini" onclick="copyField(${idx},'recreation_prompt')" title="Copy Recreation Prompt">📋</button></div>
+        <div class="result-field-text" style="color:var(--muted);font-size:12px;">${md.recreation_prompt}</div>
+      </div>` : ''}
       <div class="result-meta">
-        <span>Title: <strong>${(md.title||'').length} chars</strong></span>
-        <span>Desc: <strong>${(md.description||'').length} chars</strong></span>
+        <span>Title: <strong class="${titleWarn?'warn':''}">${titleLen} chars</strong></span>
+        <span>Desc: <strong class="${descWarn?'warn':''}">${descLen} chars</strong></span>
         <span>KW: <strong>${kws.length}</strong></span>
         ${catNum ? `<span>Cat#: <strong>${catNum}</strong></span>` : ''}
+        ${dupCount > 0 ? `<span>⚠ <strong class="warn">${dupCount} duplicate keyword(s)</strong></span>` : ''}
+        ${bannedCount > 0 ? `<span>🚫 <strong class="err">${bannedCount} risky keyword(s)</strong></span>` : ''}
       </div>`}
     </div>
     <div class="result-actions">
@@ -1977,7 +3631,191 @@ function renderResult(item, idx) {
     </div>`;
   list.appendChild(card);
   // Auto scroll disabled — page stays in place while generating
+  applyResultFilters();
 }
+
+// ===== INLINE EDIT =====
+function saveEditedField(idx, field, el) {
+  const newVal = el.textContent.trim();
+  if (!results[idx] || !results[idx].metadata) return;
+  results[idx].metadata[field] = newVal;
+  saveToHistory(results);
+  showToast(`✏️ ${field.charAt(0).toUpperCase()+field.slice(1)} updated`);
+  // Re-render to refresh char counts / warnings
+  const card = document.getElementById(`result-${idx}`);
+  if (card) card.remove();
+  renderResult(results[idx], idx);
+}
+
+// ===== FILTER / SEARCH =====
+function setResultFilter(f) {
+  resultFilter = f;
+  document.getElementById('filterAllBtn').classList.toggle('active', f === 'all');
+  document.getElementById('filterSuccessBtn').classList.toggle('active', f === 'success');
+  document.getElementById('filterFailedBtn').classList.toggle('active', f === 'failed');
+  applyResultFilters();
+}
+
+function applyResultFilters() {
+  const searchTerm = (document.getElementById('resultSearchInput')?.value || '').toLowerCase().trim();
+  results.forEach((r, idx) => {
+    const card = document.getElementById(`result-${idx}`);
+    if (!card) return;
+    let visible = true;
+    if (resultFilter === 'success' && r.metadata?.error) visible = false;
+    if (resultFilter === 'failed' && !r.metadata?.error) visible = false;
+    if (visible && searchTerm) {
+      const haystack = `${r.file.name} ${r.metadata?.title||''}`.toLowerCase();
+      if (!haystack.includes(searchTerm)) visible = false;
+    }
+    card.style.display = visible ? '' : 'none';
+  });
+}
+
+// ===== BULK SELECT =====
+function toggleBulkSelect() {
+  bulkSelectMode = !bulkSelectMode;
+  document.querySelectorAll('.result-checkbox').forEach(cb => {
+    cb.style.display = bulkSelectMode ? 'block' : 'none';
+    if (!bulkSelectMode) cb.checked = false;
+  });
+  if (!bulkSelectMode) {
+    selectedResultIndices.clear();
+    document.getElementById('bulkActionsBar').classList.remove('show');
+  } else {
+    document.getElementById('bulkActionsBar').classList.add('show');
+    updateSelectedCount();
+  }
+}
+
+function toggleResultSelect(idx) {
+  const cb = document.getElementById(`check-${idx}`);
+  if (cb.checked) selectedResultIndices.add(idx);
+  else selectedResultIndices.delete(idx);
+  updateSelectedCount();
+}
+
+function selectAllResults() {
+  results.forEach((r, idx) => {
+    const card = document.getElementById(`result-${idx}`);
+    if (card && card.style.display !== 'none') {
+      selectedResultIndices.add(idx);
+      const cb = document.getElementById(`check-${idx}`);
+      if (cb) cb.checked = true;
+    }
+  });
+  updateSelectedCount();
+}
+
+function deselectAllResults() {
+  selectedResultIndices.clear();
+  document.querySelectorAll('.result-checkbox').forEach(cb => cb.checked = false);
+  updateSelectedCount();
+}
+
+function updateSelectedCount() {
+  document.getElementById('selectedCount').textContent = selectedResultIndices.size;
+}
+
+function bulkDeleteSelected() {
+  if (selectedResultIndices.size === 0) { showToast('⚠️ কিছু সিলেক্ট করুন আগে'); return; }
+  const indices = Array.from(selectedResultIndices).sort((a,b) => b - a); // descending
+  for (const idx of indices) {
+    results.splice(idx, 1);
+  }
+  selectedResultIndices.clear();
+  // Re-render all results since indices shifted
+  rerenderAllResults();
+  showToast(`🗑 ${indices.length}টি result delete হয়েছে`);
+  saveToHistory(results);
+}
+
+function rerenderAllResults() {
+  const list = document.getElementById('resultList');
+  list.innerHTML = '';
+  if (results.length === 0) {
+    list.innerHTML = `<div class="empty" id="emptyState"><div class="ei">🔮</div><p>Upload images and click Generate to create AI-powered metadata</p></div>`;
+    document.getElementById('dlZipBtn').style.display = 'none';
+    document.getElementById('dlCsvBtn').style.display = 'none';
+    document.getElementById('dlAllPlatformsBtn').style.display = 'none';
+    document.getElementById('dlPromptsBtn').style.display = 'none';
+    document.getElementById('filterBar').style.display = 'none';
+    document.getElementById('findReplaceBar').style.display = 'none';
+    document.getElementById('bulkActionsBar').classList.remove('show');
+  } else {
+    results.forEach((r, i) => renderResult(r, i));
+  }
+  document.getElementById('resultCount').textContent = results.length;
+  updateSelectedCount();
+}
+
+// ===== FIND & REPLACE =====
+function toggleFindReplaceBar() {
+  const bar = document.getElementById('findReplaceBar');
+  bar.style.display = bar.style.display === 'none' ? 'flex' : 'none';
+}
+
+function findAndReplaceAll() {
+  const find = document.getElementById('frFind').value.trim();
+  const replace = document.getElementById('frReplace').value;
+  const scope = document.getElementById('frScope').value;
+  if (!find) { showToast('⚠️ Find করার জন্য কিছু লিখুন'); return; }
+
+  let changedCount = 0;
+  const findLower = find.toLowerCase();
+
+  results.forEach(r => {
+    if (!r.metadata || r.metadata.error) return;
+    let changed = false;
+
+    if (scope === 'keywords' || scope === 'all') {
+      const kws = r.metadata.keywords || [];
+      const newKws = [];
+      kws.forEach(k => {
+        if (String(k).toLowerCase() === findLower) {
+          changed = true;
+          if (replace.trim() !== '') newKws.push(replace.trim());
+          // if replace is empty, keyword is removed entirely
+        } else if (String(k).toLowerCase().includes(findLower)) {
+          const re = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+          newKws.push(String(k).replace(re, replace));
+          changed = true;
+        } else {
+          newKws.push(k);
+        }
+      });
+      if (changed) r.metadata.keywords = newKws;
+    }
+
+    if (scope === 'title' || scope === 'all') {
+      if (String(r.metadata.title||'').toLowerCase().includes(findLower)) {
+        const re = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        r.metadata.title = String(r.metadata.title||'').replace(re, replace);
+        changed = true;
+      }
+    }
+
+    if (scope === 'description' || scope === 'all') {
+      if (String(r.metadata.description||'').toLowerCase().includes(findLower)) {
+        const re = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        r.metadata.description = String(r.metadata.description||'').replace(re, replace);
+        changed = true;
+      }
+    }
+
+    if (changed) changedCount++;
+  });
+
+  if (changedCount > 0) {
+    rerenderAllResults();
+    saveToHistory(results);
+    showToast(`🔁 ${changedCount}টি result-এ পরিবর্তন হয়েছে`);
+  } else {
+    showToast('ℹ️ কোনো match পাওয়া যায়নি');
+  }
+}
+
+
 
 async function regenResult(idx) {
   const provider = document.getElementById('aiProvider').value;
@@ -1992,6 +3830,7 @@ async function regenResult(idx) {
   try {
     const metadata = await callAI(provider, apiKey, item.base64, item.mimeType, prompt);
     results[idx].metadata = metadata;
+    results[idx].promptUsed = prompt;
     document.getElementById(`result-${idx}`)?.remove();
     renderResult(results[idx], idx);
     showToast('✅ Regenerated!');
@@ -2000,13 +3839,20 @@ async function regenResult(idx) {
 
 function deleteResult(idx) {
   results.splice(idx, 1);
-  document.getElementById(`result-${idx}`)?.remove();
-  document.getElementById('resultCount').textContent = results.length;
-  if (results.length === 0) {
-    document.getElementById('resultList').innerHTML = `<div class="empty" id="emptyState"><div class="ei">🔮</div><p>Upload images and click Generate to create AI-powered metadata</p></div>`;
-    document.getElementById('dlZipBtn').style.display = 'none';
-    document.getElementById('dlCsvBtn').style.display = 'none';
-  }
+  selectedResultIndices.clear();
+  rerenderAllResults();
+}
+
+function copyField(idx, field) {
+  const md = results[idx]?.metadata;
+  if (!md) return;
+  let text = '';
+  if (field === 'title') text = md.title || '';
+  else if (field === 'description') text = md.description || '';
+  else if (field === 'category') text = md.category || '';
+  else if (field === 'keywords') text = (md.keywords || []).join(', ');
+  else if (field === 'recreation_prompt') text = md.recreation_prompt || '';
+  navigator.clipboard.writeText(text).then(() => showToast(`📋 ${field.charAt(0).toUpperCase()+field.slice(1)} copied!`));
 }
 
 function copyResult(idx) {
@@ -2017,8 +3863,8 @@ function copyResult(idx) {
 }
 
 // ===== BUILD CSV =====
-function buildCSV() {
-  const platform = currentPlatform;
+function buildCSV(platformOverride) {
+  const platform = platformOverride || currentPlatform;
   const catOn = document.getElementById('catToggle').classList.contains('on');
   const adobeCatNum = getAdobeCategoryNum();
   const ssCat = getShutterstockCategory();
@@ -2064,6 +3910,22 @@ function buildCSV() {
       csvQ((r.metadata.keywords||[]).join(', ')),
       csvQ(catOn ? String(r.metadata.category_number || adobeCatNum) : '')
     ]);
+  } else if (platform === 'vecteezy') {
+    headers = ['filename','title','keywords','description','category'];
+    const usedNames = new Set();
+    rows = results.map(r => {
+      const cleanName = cleanVecteezyFilename(applyExtension(r.file.name), usedNames);
+      const title = r.metadata.title || '';
+      const keywords = (r.metadata.keywords||[]).map(k=>k.trim()).filter(Boolean).join(', ');
+      const category = catOn ? (r.metadata.category || 'Design') : 'Design';
+      return [
+        csvQ(cleanName),
+        csvQ(title),
+        csvQ(keywords),
+        csvQ(title), // description = exact copy of title
+        csvQ(category)
+      ];
+    });
   } else {
     // General / default — includes category
     headers = catOn
@@ -2090,6 +3952,23 @@ function csvQ(str) {
   return '"' + String(str).replace(/"/g, '""') + '"';
 }
 
+// Clean filename to Vecteezy-friendly: A-Z, 0-9 only, ends with .eps
+function cleanVecteezyFilename(name, usedNames) {
+  let base = name.replace(/\.[^/.]+$/, ''); // remove extension
+  let clean = base.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  if (!clean) clean = 'FILE';
+  let finalName = clean + '.EPS';
+  let suffix = 1;
+  // Ensure uniqueness
+  while (usedNames.has(finalName)) {
+    finalName = clean + suffix + '.EPS';
+    suffix++;
+  }
+  usedNames.add(finalName);
+  return finalName.replace('.EPS', '.eps');
+}
+
+
 // ===== EXPORT CSV =====
 function exportCSV() {
   if (results.length === 0) { showToast('⚠️ No results to export'); return; }
@@ -2108,6 +3987,97 @@ function exportCSV() {
 }
 
 // ===== DOWNLOAD ZIP =====
+// ===== MULTI-PLATFORM CSV EXPORT (ZIP of multiple CSVs) =====
+const ALL_PLATFORMS_FOR_EXPORT = [
+  { key: 'adobe',        label: 'Adobe Stock',  file: 'adobe-stock' },
+  { key: 'shutterstock', label: 'Shutterstock', file: 'shutterstock' },
+  { key: 'freepik',      label: 'Freepik',      file: 'freepik' },
+  { key: 'vecteezy',     label: 'Vecteezy',     file: 'vecteezy' },
+  { key: 'getty',        label: 'Getty/iStock', file: 'getty-istock' },
+  { key: 'dreamstime',   label: 'Dreamstime',   file: 'dreamstime' },
+  { key: 'general',      label: 'General',      file: 'general' },
+];
+
+// ===== DOWNLOAD ALL PROMPTS (separate TXT file, NOT in CSV) =====
+function downloadAllPrompts() {
+  if (results.length === 0) { showToast('⚠️ কোনো result নেই'); return; }
+  const successResults = results.filter(r => !r.metadata?.error && r.metadata?.recreation_prompt);
+  if (successResults.length === 0) { showToast('⚠️ কোনো recreation prompt পাওয়া যায়নি'); return; }
+
+  const sections = successResults.map((r, i) => {
+    return [
+      '═'.repeat(70),
+      `FILE ${i + 1}: ${r.file.name}`,
+      `Title: ${r.metadata.title || ''}`,
+      '═'.repeat(70),
+      '',
+      'AI IMAGE RECREATION PROMPT:',
+      '-'.repeat(70),
+      r.metadata.recreation_prompt,
+      '',
+      ''
+    ].join('\n');
+  });
+
+  const header = [
+    `ROBI Graphics — Image Recreation Prompts`,
+    `(এই prompt গুলো দিয়ে Midjourney/DALL-E/Stable Diffusion-এ একই রকম ছবি তৈরি করা যাবে)`,
+    `Generated: ${new Date().toLocaleString('bn-BD')}`,
+    `Total files: ${successResults.length}`,
+    '',
+    ''
+  ].join('\n');
+
+  const fullText = header + sections.join('\n');
+  const blob = new Blob([fullText], { type: 'text/plain;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${outputFilename || 'robi-graphics'}-recreation-prompts.txt`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`✅ ${successResults.length}টি prompt সহ TXT ফাইল ডাউনলোড হয়েছে!`);
+}
+
+async function downloadAllPlatformsCSV() {
+  if (results.length === 0) { showToast('⚠️ No results to export'); return; }
+  const successResults = results.filter(r => !r.metadata?.error);
+  if (successResults.length === 0) { showToast('⚠️ কোনো সফল result নেই'); return; }
+
+  if (!window.JSZip) {
+    showToast('⏳ Loading ZIP engine…');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  }
+  const btn = document.getElementById('dlAllPlatformsBtn');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = '⏳ Building…'; btn.disabled = true; }
+
+  try {
+    const zip = new JSZip();
+    for (const p of ALL_PLATFORMS_FOR_EXPORT) {
+      const csv = buildCSV(p.key);
+      zip.file(`${p.file}.csv`, '\uFEFF' + csv);
+    }
+    const zipFname = (outputFilename || 'robi-graphics') + '-all-platforms.zip';
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = zipFname;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`✅ ${zipFname} downloaded! (${ALL_PLATFORMS_FOR_EXPORT.length} CSV files)`);
+    stats.csvExports++;
+    localStorage.setItem('robig_stats', JSON.stringify(stats));
+  } catch(e) {
+    showToast('❌ Error: ' + e.message);
+  } finally {
+    if (btn) { btn.textContent = origText || '📚 All Platforms CSV'; btn.disabled = false; }
+  }
+}
+
+
 async function downloadZip() {
   if (results.length === 0) { showToast('⚠️ No results to download'); return; }
   if (!window.JSZip) {
@@ -2163,6 +4133,11 @@ function togglePause() {
 
 // ===== MODAL =====
 function openModal() {
+  // Sync modal provider with sidebar provider
+  const sidebarProvider = document.getElementById('aiProvider').value;
+  const provMap = { gemini:'gemini', openai:'openai', openrouter:'openrouter', grok:'grok' };
+  const modalProv = document.getElementById('modalProvider');
+  if (provMap[sidebarProvider]) modalProv.value = sidebarProvider;
   document.getElementById('modalBg').classList.add('show');
   updateModalKey();
 }
@@ -2176,7 +4151,12 @@ function updateModalKey() {
 function saveApiKey() {
   const p = document.getElementById('modalProvider').value;
   const v = document.getElementById('apiKeyInput').value.trim();
-  if (v) { apiKeys[p] = v; localStorage.setItem('robig_keys', JSON.stringify(apiKeys)); }
+  if (v) {
+    apiKeys[p] = v;
+  } else {
+    delete apiKeys[p];
+  }
+  localStorage.setItem('robig_keys', JSON.stringify(apiKeys));
   document.getElementById('keyStatus').textContent = v ? '✅ Key saved' : '⚠ No key saved';
 }
 async function testKey() {
@@ -2223,32 +4203,35 @@ async function retryFailed() {
   for (const item of failed) {
     const idx = results.indexOf(item);
     try {
-      let base64 = item.base64, mimeType = item.mimeType;
+      let base64 = item.base64, mimeType = item.mimeType, textContext = item.textContext || null;
       if (!base64 && item.file) {
-        if (isVectorFile(item.file) && filePreviewMap[getFileKey(item.file)]) {
-          base64 = filePreviewMap[getFileKey(item.file)].split(',')[1];
-          mimeType = 'image/jpeg';
+        const key = getFileKey(item.file);
+        if (isVectorFile(item.file) && filePreviewMap[key]) {
+          base64 = filePreviewMap[key].split(',')[1]; mimeType = 'image/jpeg';
+        } else if (isVectorFile(item.file)) {
+          const epsResult = await processEPSFile(item.file);
+          if (epsResult.type === 'image') {
+            base64 = epsResult.data; mimeType = 'image/jpeg';
+            filePreviewMap[key] = epsResult.preview;
+          } else { textContext = epsResult.context; }
+        } else if (item.file.type.startsWith('image/')) {
+          base64 = await compressImageFile(item.file, 1200, 0.82); mimeType = 'image/jpeg';
         } else {
-          if (item.file.type.startsWith('image/')) {
-            base64 = await compressImageFile(item.file, 1200, 0.82);
-            mimeType = 'image/jpeg';
-          } else {
-            base64 = await fileToBase64(item.file);
-            mimeType = item.file.type;
-          }
+          base64 = await fileToBase64(item.file); mimeType = item.file.type;
         }
       }
-      const metadata = await callAI(provider, apiKey, base64, mimeType, prompt);
+      const metadata = await callAI(provider, apiKey, base64, mimeType, prompt, textContext);
       results[idx].metadata = metadata;
       results[idx].base64 = base64;
       results[idx].mimeType = mimeType;
+      results[idx].promptUsed = textContext ? `${textContext}\n\n${'─'.repeat(40)}\n\n${prompt}` : prompt;
       document.getElementById(`result-${idx}`)?.remove();
       renderResult(results[idx], idx);
       retried++;
     } catch(e) {
       results[idx].metadata = { error: e.message, title:'Error', description: e.message, keywords:[] };
     }
-    await sleep(300);
+    await sleep(150);
   }
 
   const stillFailed = results.filter(r => r.metadata?.error);
@@ -2315,7 +4298,17 @@ function compressImageFile(file, maxDim = 1200, quality = 0.82) {
   });
 }
 
+function recheckServer() {
+  epsServerAvailable = null;
+  document.getElementById('epsServerStatus').textContent = '🔄 Checking…';
+  checkEPSServer();
+}
+
+// Auto-check server on page load
+setTimeout(() => checkEPSServer(), 1000);
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
 
 function showToast(msg) {
   const t = document.getElementById('toast');
@@ -2324,12 +4317,342 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3500);
 }
 
+// ===== VIEW SWITCHING (Metadata Generator ↔ Image-to-Prompt) =====
+function switchView(view) {
+  const metaView   = document.getElementById('viewMeta');
+  const promptView = document.getElementById('viewPrompt');
+  const btnMeta    = document.getElementById('viewBtnMeta');
+  const btnPrompt  = document.getElementById('viewBtnPrompt');
+  if (view === 'prompt') {
+    metaView.style.display = 'none';
+    promptView.style.display = 'flex';
+    btnMeta.classList.remove('active');
+    btnPrompt.classList.add('active');
+  } else {
+    metaView.style.display = 'flex';
+    promptView.style.display = 'none';
+    btnPrompt.classList.remove('active');
+    btnMeta.classList.add('active');
+  }
+}
+
+// ===== SUPPORT / PAYMENT MODAL =====
+function openSupportModal() {
+  document.getElementById('supportModalBg').classList.add('show');
+}
+
+function copyToClipboard(text, btnEl) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btnEl.textContent;
+    btnEl.textContent = '✅ Copied!';
+    showToast('📋 Copied to clipboard!');
+    setTimeout(() => { btnEl.textContent = orig; }, 1500);
+  }).catch(() => showToast('⚠️ Copy failed — manually select করুন'));
+}
+
+// ===== IMAGE-TO-PROMPT FEATURE =====
+let promptFiles = [];
+let promptResults = []; // { file, previewSrc, generatedPrompt, targetTool, error }
+
+function handlePromptDrop(e) {
+  e.preventDefault();
+  document.getElementById('promptDropzone').classList.remove('dragover');
+  handlePromptFiles(e.dataTransfer.files);
+}
+
+function handlePromptFiles(fileList) {
+  const newFiles = Array.from(fileList).filter(f => f.type.startsWith('image/'));
+  if (newFiles.length === 0) { showToast('⚠️ শুধু image file upload করুন'); return; }
+  promptFiles.push(...newFiles);
+  renderPromptPreviews();
+  showToast(`✅ ${newFiles.length}টি image যোগ হয়েছে`);
+}
+
+function renderPromptPreviews() {
+  const grid = document.getElementById('promptPreviewGrid');
+  const placeholder = document.getElementById('promptDzPlaceholder');
+  if (promptFiles.length === 0) {
+    grid.style.display = 'none';
+    placeholder.style.display = 'flex';
+    return;
+  }
+  grid.style.display = 'grid';
+  placeholder.style.display = 'none';
+  grid.innerHTML = promptFiles.map((f, i) => {
+    const src = URL.createObjectURL(f);
+    return `<div class="preview-item" title="${f.name}">
+      <img src="${src}" alt="${f.name}" style="width:100%;height:100%;object-fit:cover;">
+      <button class="rm" onclick="removePromptFile(${i}, event)">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function removePromptFile(i, e) {
+  e.stopPropagation();
+  promptFiles.splice(i, 1);
+  renderPromptPreviews();
+}
+
+function clearPromptFiles() {
+  promptFiles = [];
+  promptResults = [];
+  renderPromptPreviews();
+  document.getElementById('promptResultList').innerHTML = `<div class="empty" id="promptEmptyState"><div class="ei">✨</div><p>Design upload করুন — AI সেটা দেখে exact recreation prompt লিখে দেবে</p></div>`;
+  document.getElementById('promptResultCount').textContent = '0';
+  document.getElementById('dlPromptResultsBtn').style.display = 'none';
+  showToast('🗑 Cleared');
+}
+
+function buildImageToPromptInstruction(targetTool, style) {
+  const toolGuides = {
+    midjourney: 'Format the prompt for Midjourney: comma-separated descriptive phrases, include style/lighting/camera keywords, end with relevant parameters like "--ar 16:9 --v 6" style suggestions (describe what would be appropriate, do not need exact flags).',
+    dalle: 'Format the prompt for DALL·E 3: a clear, natural-language descriptive paragraph (DALL·E works best with full sentences, not comma-keyword-lists).',
+    stablediffusion: 'Format the prompt for Stable Diffusion: comma-separated tags and descriptive phrases, ordered by importance, include quality boosters (e.g. "highly detailed, professional, 8k") and a separate suggested negative prompt.',
+    leonardo: 'Format the prompt for Leonardo AI: descriptive comma-separated phrases similar to Midjourney style, emphasizing art style and rendering quality keywords.',
+    general: 'Format the prompt to work well across most AI image generators: clear descriptive phrases covering subject, style, composition, lighting, and color.',
+  };
+  const styleGuides = {
+    detailed: 'Be thorough — include every visible detail: exact subject, pose/layout, color palette (specific color names), lighting direction and quality, art style, texture, background, composition, mood, and any text/typography visible.',
+    concise: 'Be concise — capture only the most essential, defining elements in a short, efficient prompt (under 40 words) while still being accurately recreatable.',
+    artistic: 'Focus heavily on artistic and stylistic qualities — art movement/style references, mood, atmosphere, color theory, rendering technique, and emotional tone, more than literal object listing.',
+  };
+
+  return `You are an expert AI image prompt engineer. Your job is to look at the uploaded image/design and reverse-engineer the EXACT prompt that would recreate this image when given to an AI image generator.
+
+${toolGuides[targetTool] || toolGuides.general}
+
+${styleGuides[style] || styleGuides.detailed}
+
+Analyze every visual aspect carefully:
+- Main subject(s) and their exact appearance, pose, expression
+- Art style (photorealistic, illustration, 3D render, flat design, watercolor, anime, etc.)
+- Color palette — name the specific dominant and accent colors visible
+- Composition and framing (close-up, wide shot, centered, rule of thirds, etc.)
+- Lighting (soft, dramatic, backlit, studio, natural, neon, etc.)
+- Background and setting
+- Texture and rendering quality (smooth, grainy, detailed, minimalist)
+- Any text, typography, or graphic elements visible
+
+Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
+{
+  "prompt": "the full recreation prompt here",
+  "negative_prompt": "optional negative prompt if relevant for this tool, otherwise empty string",
+  "style_notes": "1-2 sentence note on the key style elements identified",
+  "subject_summary": "very short 3-6 word summary of the main subject"
+}`;
+}
+
+async function startPromptGeneration() {
+  if (promptFiles.length === 0) { showToast('⚠️ আগে image upload করুন'); return; }
+  const provider = document.getElementById('aiProvider').value;
+  const apiKey = apiKeys[provider];
+  if (!apiKey) { openModal(); showToast('⚠️ API key দিন'); return; }
+
+  const targetTool = document.getElementById('promptTargetTool').value;
+  const style = document.getElementById('promptStyle').value;
+  const instruction = buildImageToPromptInstruction(targetTool, style);
+
+  const btn = document.getElementById('promptGenBtn');
+  btn.disabled = true; btn.textContent = '⏳ Generating…';
+
+  const progressWrap = document.getElementById('promptProgressWrap');
+  const progressFill = document.getElementById('promptProgressFill');
+  const progressText = document.getElementById('promptProgressText');
+  progressWrap.style.display = 'block';
+
+  promptResults = [];
+  const list = document.getElementById('promptResultList');
+  list.innerHTML = '';
+
+  let completed = 0;
+  const total = promptFiles.length;
+  const CHUNK = Math.min(parallelWorkers, total);
+
+  for (let i = 0; i < total; i += CHUNK) {
+    const batch = promptFiles.slice(i, i + CHUNK);
+    await Promise.all(batch.map(async (f) => {
+      try {
+        const base64 = await compressImageFile(f, 1200, 0.85);
+        const aiResponse = await callAI(provider, apiKey, base64, 'image/jpeg', instruction, null);
+        const previewSrc = `data:image/jpeg;base64,${base64}`;
+        const result = {
+          file: f,
+          previewSrc,
+          targetTool,
+          generatedPrompt: aiResponse.prompt || '',
+          negativePrompt: aiResponse.negative_prompt || '',
+          styleNotes: aiResponse.style_notes || '',
+          subjectSummary: aiResponse.subject_summary || '',
+        };
+        promptResults.push(result);
+        renderPromptResult(result, promptResults.length - 1);
+      } catch (e) {
+        const result = { file: f, previewSrc: URL.createObjectURL(f), error: e.message };
+        promptResults.push(result);
+        renderPromptResult(result, promptResults.length - 1);
+      }
+      completed++;
+      progressFill.style.width = Math.round((completed / total) * 100) + '%';
+      progressText.textContent = `Processing ${completed} / ${total}…`;
+      document.getElementById('promptResultCount').textContent = promptResults.length;
+    }));
+  }
+
+  progressWrap.style.display = 'none';
+  btn.disabled = false; btn.textContent = '✨ Generate Prompts';
+  const successCount = promptResults.filter(r => !r.error).length;
+  if (successCount > 0) document.getElementById('dlPromptResultsBtn').style.display = 'flex';
+  showToast(`✅ ${successCount}/${total}টি prompt তৈরি হয়েছে!`);
+}
+
+function renderPromptResult(item, idx) {
+  const list = document.getElementById('promptResultList');
+  const empty = document.getElementById('promptEmptyState');
+  if (empty) empty.remove();
+
+  const card = document.createElement('div');
+  card.className = 'result-card';
+  card.id = `prompt-result-${idx}`;
+  card.innerHTML = `
+    <img class="result-thumb" src="${item.previewSrc}" alt="thumb">
+    <div class="result-body">
+      <div class="result-filename">${item.file.name}</div>
+      ${item.error ? `<div style="color:var(--red);font-size:13px;">⚠ ${item.error}</div>` : `
+      ${item.subjectSummary ? `<span class="cat-badge" style="margin-bottom:8px;display:inline-block;">🎯 ${item.subjectSummary}</span>` : ''}
+      <div class="result-field">
+        <div class="result-field-label">Generated Prompt <button class="btn-icon-mini" onclick="copyPromptResultField(${idx},'generatedPrompt')" title="Copy">📋</button></div>
+        <div class="result-field-text" style="white-space:pre-wrap;">${item.generatedPrompt}</div>
+      </div>
+      ${item.negativePrompt ? `<div class="result-field">
+        <div class="result-field-label">Negative Prompt <button class="btn-icon-mini" onclick="copyPromptResultField(${idx},'negativePrompt')" title="Copy">📋</button></div>
+        <div class="result-field-text" style="white-space:pre-wrap;color:var(--muted);">${item.negativePrompt}</div>
+      </div>` : ''}
+      ${item.styleNotes ? `<div class="result-field">
+        <div class="result-field-label">Style Notes</div>
+        <div class="result-field-text desc">${item.styleNotes}</div>
+      </div>` : ''}`}
+    </div>
+    <div class="result-actions">
+      <button class="btn-icon" onclick="copyPromptResultField(${idx},'generatedPrompt')" title="Copy Prompt">📋</button>
+      <button class="btn-icon" onclick="deletePromptResult(${idx})" title="Delete" style="color:var(--red);">🗑</button>
+    </div>`;
+  list.appendChild(card);
+}
+
+function copyPromptResultField(idx, field) {
+  const text = promptResults[idx]?.[field] || '';
+  if (!text) { showToast('⚠️ কিছু নেই copy করার মতো'); return; }
+  navigator.clipboard.writeText(text).then(() => showToast('📋 Copied!'));
+}
+
+function deletePromptResult(idx) {
+  promptResults.splice(idx, 1);
+  const list = document.getElementById('promptResultList');
+  list.innerHTML = '';
+  if (promptResults.length === 0) {
+    list.innerHTML = `<div class="empty" id="promptEmptyState"><div class="ei">✨</div><p>Design upload করুন — AI সেটা দেখে exact recreation prompt লিখে দেবে</p></div>`;
+    document.getElementById('dlPromptResultsBtn').style.display = 'none';
+  } else {
+    promptResults.forEach((r, i) => renderPromptResult(r, i));
+  }
+  document.getElementById('promptResultCount').textContent = promptResults.length;
+}
+
+function downloadAllGeneratedPrompts() {
+  const successResults = promptResults.filter(r => !r.error);
+  if (successResults.length === 0) { showToast('⚠️ কোনো prompt নেই'); return; }
+
+  const sections = successResults.map((r, i) => [
+    '═'.repeat(70),
+    `IMAGE ${i + 1}: ${r.file.name}`,
+    `Target Tool: ${r.targetTool}`,
+    `Subject: ${r.subjectSummary || '-'}`,
+    '═'.repeat(70),
+    '',
+    'PROMPT:',
+    r.generatedPrompt,
+    '',
+    r.negativePrompt ? `NEGATIVE PROMPT:\n${r.negativePrompt}\n` : '',
+    r.styleNotes ? `STYLE NOTES:\n${r.styleNotes}\n` : '',
+    ''
+  ].join('\n'));
+
+  const header = [
+    'ROBI Graphics — Image-to-Prompt Results',
+    `Generated: ${new Date().toLocaleString('bn-BD')}`,
+    `Total images: ${successResults.length}`,
+    '', ''
+  ].join('\n');
+
+  const fullText = header + sections.join('\n');
+  const blob = new Blob([fullText], { type: 'text/plain;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'robi-graphics-image-prompts.txt';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`✅ ${successResults.length}টি prompt সহ TXT ডাউনলোড হয়েছে!`);
+}
+
 // Close modals on bg click
-['modalBg','settingsModalBg','usersModalBg','vectorModalBg','historyModalBg'].forEach(id => {
+['modalBg','settingsModalBg','usersModalBg','vectorModalBg','historyModalBg','supportModalBg','adminPanelModalBg','gistSetupModalBg','kwEditorModalBg'].forEach(id => {
   document.getElementById(id).addEventListener('click', function(e) {
     if (e.target === this) this.classList.remove('show');
   });
 });
+
+// ===== KEYWORD EDITOR =====
+let kwEditorIdx = -1;
+
+function openKwEditor(idx) {
+  kwEditorIdx = idx;
+  const kws = Array.isArray(results[idx]?.metadata?.keywords) ? results[idx].metadata.keywords : [];
+  document.getElementById('kwEditorTextarea').value = kws.join('\n');
+  updateKwEditorCount();
+  document.getElementById('kwEditorModalBg').classList.add('show');
+}
+
+function updateKwEditorCount() {
+  const lines = document.getElementById('kwEditorTextarea').value
+    .split('\n').map(s => s.trim()).filter(Boolean);
+  const countEl = document.getElementById('kwEditorCount');
+  const warnEl  = document.getElementById('kwEditorWarn');
+  countEl.textContent = lines.length + ' keywords';
+  countEl.style.color = lines.length > 50 ? 'var(--red)' : lines.length >= 45 ? 'var(--green)' : 'var(--accent)';
+  warnEl.style.display = (lines.length !== 49) ? 'inline' : 'none';
+}
+
+function saveKwEditor() {
+  if (kwEditorIdx < 0 || !results[kwEditorIdx]) return;
+  const lines = document.getElementById('kwEditorTextarea').value
+    .split('\n').map(s => s.trim()).filter(Boolean);
+  results[kwEditorIdx].metadata.keywords = lines;
+  saveToHistory(results);
+  document.getElementById('kwEditorModalBg').classList.remove('show');
+  const card = document.getElementById('result-' + kwEditorIdx);
+  if (card) card.remove();
+  renderResult(results[kwEditorIdx], kwEditorIdx);
+  showToast('✅ ' + lines.length + 'টি keyword save হয়েছে');
+}
+
 </script>
+
+<!-- ===== KEYWORD EDITOR MODAL ===== -->
+<div class="modal-bg" id="kwEditorModalBg">
+  <div class="modal" style="width:600px;max-width:96vw;">
+    <h2 style="margin-bottom:6px;">✏️ Keywords Edit করুন</h2>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:14px;">প্রতি লাইনে একটি keyword। সরাসরি edit করুন — সব পরিবর্তন CSV-তেও যাবে।</p>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+      <span id="kwEditorCount" style="font-size:13px;color:var(--accent);font-family:'Space Mono',monospace;">0 keywords</span>
+      <span id="kwEditorWarn" style="font-size:12px;color:var(--accent2);display:none;">⚠️ 49 keywords recommended for Adobe Stock</span>
+    </div>
+    <textarea id="kwEditorTextarea" style="width:100%;height:320px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;font-family:'Space Mono',monospace;padding:12px;resize:vertical;line-height:1.7;" oninput="updateKwEditorCount()"></textarea>
+    <div class="modal-btns" style="margin-top:14px;">
+      <button class="btn btn-generate" style="flex:2;justify-content:center;" onclick="saveKwEditor()">✅ Save Keywords</button>
+      <button class="btn btn-pause" style="flex:1;justify-content:center;" onclick="document.getElementById('kwEditorModalBg').classList.remove('show')">Cancel</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
