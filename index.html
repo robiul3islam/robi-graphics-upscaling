@@ -3686,75 +3686,82 @@ function embedJpegFull(arrayBuf, md, rating) {
   return out.buffer;
 }
 
-// ── PNG: embed XMP via iTXt chunk, image data untouched ──
+// ── PNG: embed XMP for Windows Properties ──
 function embedPngFull(arrayBuf, md, rating) {
   const src = new Uint8Array(arrayBuf);
   const enc = new TextEncoder();
 
-  // Verify PNG signature
   if (src[0]!==0x89||src[1]!==0x50||src[2]!==0x4E||src[3]!==0x47) return arrayBuf;
 
   const stars = Math.min(5, Math.max(0, parseInt(rating)||0));
+  const msRating = [0,1,25,50,75,99][stars]||0;
+
+  function xe(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  // Minimal XMP that Windows Explorer reads for Details tab
+  const kws = (md.keywords||[]).slice(0,30).map(k=>`<rdf:li>${xe(k)}</rdf:li>`).join('');
+  const title = xe((md.title||'').slice(0,200));
+  const desc  = xe((md.description||'').slice(0,300));
+
+  const xmpStr = '<?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+    + '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+    + '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+    + '<rdf:Description rdf:about=""'
+    + ' xmlns:dc="http://purl.org/dc/elements/1.1/"'
+    + ' xmlns:xmp="http://ns.adobe.com/xap/1.0/"'
+    + ' xmlns:MicrosoftPhoto="http://ns.microsoft.com/photo/1.0/">'
+    + '<dc:title><rdf:Alt><rdf:li xml:lang="x-default">' + title + '</rdf:li></rdf:Alt></dc:title>'
+    + '<dc:description><rdf:Alt><rdf:li xml:lang="x-default">' + desc + '</rdf:li></rdf:Alt></dc:description>'
+    + '<dc:subject><rdf:Bag>' + kws + '</rdf:Bag></dc:subject>'
+    + '<xmp:Rating>' + stars + '</xmp:Rating>'
+    + '<MicrosoftPhoto:Rating>' + msRating + '</MicrosoftPhoto:Rating>'
+    + '</rdf:Description></rdf:RDF></x:xmpmeta>'
+    + '<?xpacket end="w"?>';
 
   function pngChunk(type, data) {
     const t = enc.encode(type);
-    const lenVal = data.length;
-    const lenB = new Uint8Array([(lenVal>>24)&0xFF,(lenVal>>16)&0xFF,(lenVal>>8)&0xFF,lenVal&0xFF]);
-    const crcBuf = new Uint8Array(t.length+data.length);
-    crcBuf.set(t); crcBuf.set(data,t.length);
-    const cv = crc32(crcBuf);
+    const L = data.length;
+    const lenB = new Uint8Array([(L>>24)&0xFF,(L>>16)&0xFF,(L>>8)&0xFF,L&0xFF]);
+    const forCRC = new Uint8Array(t.length + data.length);
+    forCRC.set(t); forCRC.set(data, t.length);
+    const cv = crc32(forCRC);
     const crcB = new Uint8Array([(cv>>24)&0xFF,(cv>>16)&0xFF,(cv>>8)&0xFF,cv&0xFF]);
-    const out = new Uint8Array(4+4+data.length+4);
-    out.set(lenB,0); out.set(t,4); out.set(data,8); out.set(crcB,8+data.length);
-    return out;
+    const chunk = new Uint8Array(4 + 4 + data.length + 4);
+    chunk.set(lenB,0); chunk.set(t,4); chunk.set(data,8); chunk.set(crcB, 8+data.length);
+    return chunk;
   }
 
-  function itxtChunk(keyword, text) {
-    const kw = enc.encode(keyword.slice(0,79));
-    const tx = enc.encode(String(text||'').slice(0,1000));
-    const d  = new Uint8Array(kw.length+5+tx.length);
-    d.set(kw);
-    d[kw.length]=0; d[kw.length+1]=0; d[kw.length+2]=0; d[kw.length+3]=0; d[kw.length+4]=0;
-    d.set(tx, kw.length+5);
-    return pngChunk('iTXt', d);
-  }
+  // Build iTXt chunk with keyword "XML:com.adobe.xmp"
+  const kwBytes  = enc.encode('XML:com.adobe.xmp');
+  const xmpBytes = enc.encode(xmpStr);
+  // iTXt: keyword[NUL] comprFlag(0) comprMethod(0) lang[NUL] translatedKW[NUL] text
+  const iTXtData = new Uint8Array(kwBytes.length + 5 + xmpBytes.length);
+  iTXtData.set(kwBytes, 0);
+  iTXtData[kwBytes.length]   = 0; // null separator
+  iTXtData[kwBytes.length+1] = 0; // compression flag: none
+  iTXtData[kwBytes.length+2] = 0; // compression method
+  iTXtData[kwBytes.length+3] = 0; // language: empty
+  iTXtData[kwBytes.length+4] = 0; // translated keyword: empty
+  iTXtData.set(xmpBytes, kwBytes.length + 5);
+  const xmpChunk = pngChunk('iTXt', iTXtData);
 
-  // XMP chunk (Windows reads this for Properties panel)
-  const xmpStr = buildXMP(md, stars);
-  const xmpKW  = enc.encode('XML:com.adobe.xmp');
-  const xmpTX  = enc.encode(xmpStr);
-  const xmpD   = new Uint8Array(xmpKW.length+5+xmpTX.length);
-  xmpD.set(xmpKW);
-  xmpD[xmpKW.length]=0; xmpD[xmpKW.length+1]=0; xmpD[xmpKW.length+2]=0;
-  xmpD[xmpKW.length+3]=0; xmpD[xmpKW.length+4]=0;
-  xmpD.set(xmpTX, xmpKW.length+5);
-  const xmpChunk = pngChunk('iTXt', xmpD);
-
-  const chunks = [
-    itxtChunk('Title',    md.title||''),
-    itxtChunk('Comment',  md.description||''),
-    itxtChunk('Keywords', (md.keywords||[]).join('; ')),
-    itxtChunk('Rating',   String(stars)),
-    xmpChunk,
-  ];
-  const extra = chunks.reduce((a,c)=>a+c.length,0);
-
-  // Find IEND (scan from end)
+  // Find IEND chunk (last 12 bytes of valid PNG)
   let iendPos = -1;
-  for (let i=src.length-12; i>=8; i--) {
-    if (src[i+4]===0x49&&src[i+5]===0x45&&src[i+6]===0x4E&&src[i+7]===0x44) {
-      iendPos=i; break;
+  for (let i = src.length - 12; i >= 8; i--) {
+    if (src[i+4]===0x49 && src[i+5]===0x45 && src[i+6]===0x4E && src[i+7]===0x44) {
+      iendPos = i; break;
     }
   }
-  if (iendPos<0) return arrayBuf;
+  if (iendPos < 0) return arrayBuf;
 
-  const out = new Uint8Array(src.length+extra);
-  out.set(src.slice(0,iendPos));
-  let off=iendPos;
-  for (const c of chunks){out.set(c,off);off+=c.length;}
-  out.set(src.slice(iendPos));
+  // Insert XMP chunk before IEND
+  const out = new Uint8Array(src.length + xmpChunk.length);
+  out.set(src.slice(0, iendPos));
+  out.set(xmpChunk, iendPos);
+  out.set(src.slice(iendPos), iendPos + xmpChunk.length);
   return out.buffer;
 }
+
 
 // ── Router ──
 async function embedMetadata(arrayBuf, mimeType, ext, md, rating) {
