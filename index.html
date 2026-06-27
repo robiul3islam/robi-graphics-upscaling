@@ -624,171 +624,9 @@
 </head>
 <body>
 
-<!-- ===== ACCESS GATE OVERLAY ===== -->
-<div id="accessGateOverlay" style="position:fixed;inset:0;z-index:99999;background:#05070a;display:flex;align-items:center;justify-content:center;padding:20px;">
-  <div style="width:100%;max-width:440px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:32px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
-    <div style="font-size:40px;margin-bottom:8px;">🔐</div>
-    <div class="logo" style="justify-content:center;margin-bottom:4px;">ℛØℬᎥ Graphics</div>
-    <p style="color:var(--muted);font-size:13px;margin-bottom:24px;">এই tool ব্যবহার করতে Access Code প্রয়োজন</p>
+<!-- Access Gate removed -->
 
-    <!-- Loading state -->
-    <div id="gateLoadingState" style="display:none;padding:16px 0;color:var(--muted);font-size:13px;font-family:'Space Mono',monospace;">
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
-        <div style="width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-        Verifying…
-      </div>
-    </div>
-
-    <!-- Code input -->
-    <div id="gateInputState">
-      <input type="text" id="accessCodeInput" placeholder="আপনার Access Code লিখুন…"
-        style="width:100%;padding:14px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:15px;text-align:center;letter-spacing:2px;font-family:'Space Mono',monospace;margin-bottom:12px;outline:none;"
-        onkeydown="if(event.key==='Enter')tryAccessCode()">
-      <button class="btn btn-generate" style="width:100%;justify-content:center;margin-bottom:16px;" onclick="tryAccessCode()">🔓 Unlock</button>
-      <div id="accessGateError" style="color:var(--red);font-size:13px;margin-bottom:16px;display:none;"></div>
-    </div>
-
-    <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px;">
-      <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Access Code নেই? Owner-এর সাথে যোগাযোগ করুন:</p>
-      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-        <a href="https://wa.me/8801976978728" target="_blank" style="font-size:12px;padding:8px 14px;background:rgba(37,211,102,0.12);color:#25d366;border:1px solid rgba(37,211,102,0.3);border-radius:8px;text-decoration:none;">💬 WhatsApp</a>
-        <a href="mailto:robiulislam78888@gmail.com" style="font-size:12px;padding:8px 14px;background:rgba(0,229,255,0.1);color:var(--accent);border:1px solid rgba(0,229,255,0.25);border-radius:8px;text-decoration:none;">✉️ Email</a>
-      </div>
-    </div>
-
-    <div style="margin-top:20px;">
-      <button onclick="document.getElementById('adminLoginPrompt').style.display='flex'" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;text-decoration:underline;">Admin?</button>
-    </div>
-  </div>
-
-  <!-- Admin login mini-prompt -->
-  <div id="adminLoginPrompt" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);align-items:center;justify-content:center;z-index:100000;">
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px;width:360px;max-width:90vw;">
-      <h3 style="margin-bottom:6px;">🛡️ Admin Login</h3>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Admin password দিয়ে লগইন করুন</p>
-      <input type="password" id="adminPasswordInput" placeholder="Admin password" style="width:100%;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;margin-bottom:10px;outline:none;" onkeydown="if(event.key==='Enter')tryAdminLogin()">
-      <div id="adminLoginError" style="display:none;color:var(--red);font-size:12px;margin-bottom:10px;"></div>
-      <div style="display:flex;gap:8px;">
-        <button class="btn btn-generate" style="flex:1;justify-content:center;" onclick="tryAdminLogin()">Login</button>
-        <button class="btn btn-pause" style="flex:1;justify-content:center;" onclick="document.getElementById('adminLoginPrompt').style.display='none'">Cancel</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ===== GIST SETUP MODAL (first-time admin setup) ===== -->
-<div class="modal-bg" id="gistSetupModalBg" style="z-index:99998;">
-  <div class="modal" style="width:560px;max-width:96vw;">
-    <h2 style="margin-bottom:6px;">⚙️ GitHub Gist Setup</h2>
-    <p style="color:var(--muted);font-size:13px;margin-bottom:20px;">একবার setup করুন — তারপর যেকোনো device থেকে codes কাজ করবে, আর HTML আপলোড করতে হবে না।</p>
-
-    <!-- Step 1 -->
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">
-      <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent2);letter-spacing:2px;margin-bottom:10px;">STEP 1 — GitHub Token তৈরি করুন</div>
-      <ol style="font-size:13px;color:var(--text);line-height:1.8;padding-left:18px;">
-        <li><a href="https://github.com/settings/tokens/new" target="_blank" style="color:var(--accent);">github.com/settings/tokens/new</a> — এখানে যান</li>
-        <li>Note: <code style="background:var(--card);padding:1px 6px;border-radius:4px;">ROBI Graphics</code></li>
-        <li>Expiration: <strong>No expiration</strong></li>
-        <li>Scopes: ✅ <strong>gist</strong> শুধু এটা tick দিন</li>
-        <li>Generate token → copy করুন</li>
-      </ol>
-    </div>
-
-    <!-- Step 2 -->
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">
-      <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent2);letter-spacing:2px;margin-bottom:10px;">STEP 2 — Token ও Gist ID দিন</div>
-      <div style="margin-bottom:10px;">
-        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">GitHub Personal Access Token</label>
-        <input type="password" id="gistTokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="width:100%;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'Space Mono',monospace;outline:none;">
-      </div>
-      <div>
-        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">Gist ID <span style="font-size:11px;">(প্রথমবার খালি রাখুন — auto তৈরি হবে)</span></label>
-        <input type="text" id="gistIdInput" placeholder="auto-create করতে খালি রাখুন" style="width:100%;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'Space Mono',monospace;outline:none;">
-      </div>
-    </div>
-
-    <div id="gistSetupError" style="display:none;background:rgba(255,45,85,0.08);border:1px solid rgba(255,45,85,0.3);border-radius:8px;padding:10px;font-size:13px;color:var(--red);margin-bottom:12px;"></div>
-    <div id="gistSetupSuccess" style="display:none;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);border-radius:8px;padding:10px;font-size:13px;color:var(--green);margin-bottom:12px;"></div>
-
-    <div class="modal-btns">
-      <button class="btn btn-generate" style="flex:2;justify-content:center;" id="gistSetupSaveBtn" onclick="saveGistConfig()">✅ Save & Connect</button>
-      <button class="btn btn-pause" style="flex:1;justify-content:center;" onclick="document.getElementById('gistSetupModalBg').classList.remove('show')">Cancel</button>
-    </div>
-  </div>
-</div>
-
-<!-- ===== ADMIN PANEL (GitHub Gist-powered) ===== -->
-<div class="modal-bg" id="adminPanelModalBg">
-  <div class="modal" style="width:660px;max-width:96vw;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-      <h2>🛡️ Admin Panel</h2>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <div id="gistStatusBadge" style="font-size:11px;font-family:'Space Mono',monospace;border-radius:6px;padding:3px 10px;background:rgba(255,107,0,0.12);color:var(--accent2);border:1px solid rgba(255,107,0,0.3);">⏳ Not Connected</div>
-        <span style="font-size:11px;font-family:'Space Mono',monospace;background:rgba(124,58,237,0.15);color:var(--accent3);border:1px solid rgba(124,58,237,0.3);border-radius:6px;padding:3px 10px;">ADMIN SESSION</span>
-      </div>
-    </div>
-    <p style="margin-bottom:14px;color:var(--muted);font-size:13px;">GitHub Gist-এ codes সংরক্ষণ হয় — যেকোনো device থেকে একই code কাজ করে। আর HTML আপলোড করতে হয় না।</p>
-
-    <!-- Gist connection status bar -->
-    <div id="gistConnectedBar" style="display:none;background:rgba(0,255,136,0.07);border:1px solid rgba(0,255,136,0.25);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:none;align-items:center;justify-content:space-between;gap:10px;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite;flex-shrink:0;"></div>
-        <div>
-          <div style="font-size:12px;color:var(--green);font-weight:700;">GitHub Gist Connected</div>
-          <div id="gistConnectedId" style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;"></div>
-        </div>
-      </div>
-      <button onclick="openGistSetup()" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);color:var(--accent);border-radius:6px;padding:5px 12px;cursor:pointer;font-size:11px;font-family:'Space Mono',monospace;">⚙️ Change</button>
-    </div>
-
-    <div id="gistNotConnectedBar" style="background:rgba(255,107,0,0.07);border:1px solid rgba(255,107,0,0.3);border-radius:10px;padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
-      <div style="font-size:13px;color:var(--accent2);">⚠️ GitHub Gist এখনো setup হয়নি। Setup করলে যেকোনো device থেকে codes কাজ করবে।</div>
-      <button onclick="openGistSetup()" class="btn btn-generate" style="padding:8px 16px;font-size:13px;white-space:nowrap;">⚙️ Setup Gist</button>
-    </div>
-
-    <!-- Stats row -->
-    <div style="background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:14px;display:flex;gap:24px;flex-wrap:wrap;">
-      <div>
-        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">মোট Codes</div>
-        <div style="font-size:26px;font-weight:700;color:var(--accent);font-family:'Orbitron',monospace;" id="adminTotalCodesCount">0</div>
-      </div>
-      <div>
-        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">ব্যবহৃত</div>
-        <div style="font-size:26px;font-weight:700;color:var(--green);font-family:'Orbitron',monospace;" id="adminUsedCodesCount">0</div>
-      </div>
-      <div>
-        <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">Unused</div>
-        <div style="font-size:26px;font-weight:700;color:var(--muted);font-family:'Orbitron',monospace;" id="adminUnusedCodesCount">0</div>
-      </div>
-      <div style="margin-left:auto;display:flex;align-items:center;">
-        <button onclick="syncFromGist(true)" style="background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);color:var(--accent);border-radius:8px;padding:8px 14px;cursor:pointer;font-size:12px;font-family:'Space Mono',monospace;display:flex;align-items:center;gap:6px;" id="syncBtn">
-          🔄 Sync
-        </button>
-      </div>
-    </div>
-
-    <!-- Generate new code -->
-    <div style="margin-bottom:14px;">
-      <label style="display:block;font-size:11px;color:var(--accent2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;font-family:'Space Mono',monospace;">নতুন User-এর জন্য Code তৈরি করুন</label>
-      <div style="display:flex;gap:8px;">
-        <input type="text" id="newUserLabelInput" placeholder="User নাম/নোট (যেমন: Karim Bhai)" style="flex:1;padding:10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;" onkeydown="if(event.key==='Enter')generateNewAccessCode()">
-        <button class="btn btn-generate" onclick="generateNewAccessCode()" id="genCodeBtn">+ Generate</button>
-      </div>
-    </div>
-
-    <!-- Code list -->
-    <div style="margin-bottom:14px;">
-      <label style="display:block;font-size:11px;color:var(--accent2);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;font-family:'Space Mono',monospace;">সব Codes</label>
-      <div id="adminCodesList" style="max-height:240px;overflow-y:auto;background:var(--bg2);border:1px solid var(--border);border-radius:8px;"></div>
-    </div>
-
-    <div class="modal-btns">
-      <button class="btn btn-export" style="flex:1;justify-content:center;" onclick="exportCodesList()">⬇ CSV Export</button>
-      <button class="btn" style="flex:1;justify-content:center;background:rgba(255,45,85,0.12);color:var(--red);border:1px solid rgba(255,45,85,0.3);" onclick="adminLogout()">🚪 Logout</button>
-      <button class="btn btn-pause" style="flex:1;justify-content:center;" onclick="document.getElementById('adminPanelModalBg').classList.remove('show')">Close</button>
-    </div>
-  </div>
-</div>
+<!-- Admin Panel removed -->
 
 
 <!-- HEADER -->
@@ -805,10 +643,8 @@
     <span id="epsServerStatus" style="font-size:11px;font-family:'Space Mono',monospace;display:none;">🟢 EPS Server</span>
     <button class="btn-users" onclick="openSupportModal()" style="background:rgba(255,193,7,0.12);color:#ffc107;border:1px solid rgba(255,193,7,0.3);">💛 Support / Pay</button>
     <button class="btn-users" onclick="openHistoryModal()" style="background:rgba(0,229,255,0.1);color:var(--accent);border:1px solid rgba(0,229,255,0.3);">🕘 History</button>
-    <button class="btn-users" onclick="openUsersModal()">👥 Users</button>
     <button class="btn-settings" onclick="openSettingsModal()">⚙ Settings</button>
     <button class="btn-api" onclick="openModal()">🔑 API Key</button>
-    <button class="admin-only" id="adminHeaderBtn" onclick="openAdminPanel()" style="display:none;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;cursor:pointer;padding:11px 22px;border-radius:10px;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;transition:all 0.2s;">🛡️ Admin</button>
   </div>
 </header>
 
@@ -1054,6 +890,17 @@
         <option value="concise">Concise (সংক্ষিপ্ত, মূল বিষয়)</option>
         <option value="artistic">Artistic (style/mood-focused)</option>
       </select>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">🎨 Special Mode</div>
+      <div style="background:rgba(255,107,0,0.08);border:1px solid rgba(255,107,0,0.25);border-radius:10px;padding:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:13px;font-weight:700;color:var(--accent2);">🖌 Coloring Page Mode</span>
+          <div class="toggle" id="coloringModeToggle" onclick="this.classList.toggle('on')"></div>
+        </div>
+        <p style="font-size:11px;color:var(--muted);line-height:1.5;">যেকোনো ছবিকে প্রফেশনাল coloring book line art-এ রূপান্তর করার জন্য optimized prompt তৈরি করবে। KDP, Adobe Stock, Shutterstock-এর জন্য উপযুক্ত।</p>
+      </div>
     </div>
 
     <div class="sidebar-section">
@@ -1322,374 +1169,7 @@
 <div class="toast" id="toast"><span class="ti">✅</span><span id="toastMsg">Done!</span></div>
 
 <script>
-// ===== ACCESS CONTROL =====
-const ADMIN_PASS = '5877162026';
-const HARDCODED_GIST_ID = '4d5dbd5f3322e6c4194681d46665c625';
-const GIST_FILENAME = 'robi-graphics-codes.json';
-
-// ── Master code ──
-function simpleHash(str) {
-  let h = 5381;
-  for (let i = 0; i < str.length; i++) { h = ((h << 5) + h) + str.charCodeAt(i); h = h & h; }
-  return Math.abs(h);
-}
-function computeMasterCode() {
-  const raw = 'robi-graphics-2026-secret-key-change-me::master-owner-robi';
-  const h = simpleHash(raw);
-  const s = h.toString(36).toUpperCase().padStart(8,'0').slice(0,8);
-  return s.slice(0,4) + '-' + s.slice(4,8);
-}
-
-// ── Gist config ──
-function getGistConfig() {
-  try { return JSON.parse(localStorage.getItem('robig_gist_config') || 'null'); } catch { return null; }
-}
-function saveGistConfig_local(cfg) {
-  localStorage.setItem('robig_gist_config', JSON.stringify(cfg));
-}
-
-// ── Gist API ──
-async function gistFetch(method, gistId, token, body) {
-  const url = gistId ? 'https://api.github.com/gists/' + gistId : 'https://api.github.com/gists';
-  const opts = { method, headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' } };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.message || 'HTTP ' + res.status); }
-  return res.json();
-}
-
-async function readGistCodes(cfg) {
-  if (!cfg?.gistId || !cfg?.token) return null;
-  try {
-    const gist = await gistFetch('GET', cfg.gistId, cfg.token);
-    const raw = gist.files?.[GIST_FILENAME]?.content;
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch { return null; }
-}
-
-async function writeGistCodes(cfg, codes) {
-  const content = JSON.stringify(codes, null, 2);
-  const body = { files: { [GIST_FILENAME]: { content } } };
-  if (cfg.gistId) {
-    await gistFetch('PATCH', cfg.gistId, cfg.token, body);
-  } else {
-    body.description = 'ROBI Graphics — Access Codes';
-    body.public = true;
-    const res = await gistFetch('POST', null, cfg.token, body);
-    cfg.gistId = res.id;
-    saveGistConfig_local(cfg);
-  }
-}
-
-// ── Cache ──
-function getCachedCodes() {
-  try { return JSON.parse(localStorage.getItem('robig_codes_cache') || 'null'); } catch { return null; }
-}
-function setCachedCodes(codes) {
-  localStorage.setItem('robig_codes_cache', JSON.stringify(codes));
-}
-
-async function fetchAndCacheCodes() {
-  const cfg = getGistConfig();
-  if (cfg?.gistId && cfg?.token) {
-    const codes = await readGistCodes(cfg);
-    if (codes !== null) { setCachedCodes(codes); return codes; }
-  }
-  const gistId = cfg?.gistId || localStorage.getItem('robig_public_gist_id') || HARDCODED_GIST_ID;
-  if (gistId) {
-    try {
-      const res = await fetch('https://api.github.com/gists/' + gistId, { headers: { 'Accept': 'application/vnd.github+json' } });
-      if (res.ok) {
-        const gist = await res.json();
-        const raw = gist.files?.[GIST_FILENAME]?.content;
-        if (raw) { const codes = JSON.parse(raw); setCachedCodes(codes); return codes; }
-      }
-    } catch(e) {}
-  }
-  return getCachedCodes() || [];
-}
-
-// ── Validation ──
-async function isValidAccessCode(code) {
-  const entered = code.trim().toUpperCase().replace(/\s/g,'');
-  if (!entered) return false;
-  if (entered === computeMasterCode()) return true;
-  const cached = getCachedCodes();
-  if (cached && cached.some(c => c.code === entered && c.active !== false)) return true;
-  const fresh = await fetchAndCacheCodes();
-  return fresh.some(c => c.code === entered && c.active !== false);
-}
-
-// ── Access Gate ──
-async function tryAccessCode() {
-  const input = document.getElementById('accessCodeInput');
-  const errEl = document.getElementById('accessGateError');
-  const loadEl = document.getElementById('gateLoadingState');
-  const inpEl = document.getElementById('gateInputState');
-  const code = input.value.trim();
-  if (!code) return;
-  errEl.style.display = 'none';
-  loadEl.style.display = 'block';
-  inpEl.style.opacity = '0.5';
-  inpEl.style.pointerEvents = 'none';
-  try {
-    const valid = await isValidAccessCode(code);
-    if (valid) {
-      fetchAndCacheCodes().then(codes => {
-        const cfg = getGistConfig();
-        const entry = codes.find(c => c.code === code.toUpperCase());
-        if (entry && cfg?.gistId) {
-          entry.used = true; entry.useCount = (entry.useCount||0)+1; entry.lastUsed = new Date().toISOString();
-          writeGistCodes(cfg, codes).then(()=>setCachedCodes(codes)).catch(()=>{});
-        }
-      }).catch(()=>{});
-      localStorage.setItem('robig_unlocked', 'true');
-      localStorage.setItem('robig_unlock_code', code.toUpperCase());
-      document.getElementById('accessGateOverlay').style.display = 'none';
-      document.body.style.overflow = '';
-    } else {
-      loadEl.style.display = 'none';
-      inpEl.style.opacity = '';
-      inpEl.style.pointerEvents = '';
-      errEl.textContent = '❌ ভুল কোড। আবার চেষ্টা করুন।';
-      errEl.style.display = 'block';
-      input.style.borderColor = 'var(--red)';
-      setTimeout(()=>{ input.style.borderColor=''; }, 1500);
-    }
-  } catch(e) {
-    loadEl.style.display = 'none';
-    inpEl.style.opacity = '';
-    inpEl.style.pointerEvents = '';
-    errEl.textContent = '⚠️ Network error — আবার চেষ্টা করুন।';
-    errEl.style.display = 'block';
-  }
-}
-
-function checkAccessGate() {
-  const overlay = document.getElementById('accessGateOverlay');
-  fetchAndCacheCodes().catch(()=>{});
-  // Admin session থাকলে সবসময় access
-  if (isAdminSession()) {
-    localStorage.setItem('robig_unlocked', 'true');
-    overlay.style.display = 'none';
-    document.body.style.overflow = '';
-    document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
-    return;
-  }
-  const unlocked = localStorage.getItem('robig_unlocked') === 'true';
-  if (unlocked) {
-    overlay.style.display = 'none';
-  } else {
-    overlay.style.display = 'flex';
-    document.body.style.overflow = 'hidden';
-  }
-}
-
-// ── Admin Login ──
-function tryAdminLogin() {
-  const pwd = document.getElementById('adminPasswordInput').value.trim();
-  const errEl = document.getElementById('adminLoginError');
-  errEl.style.display = 'none';
-  if (pwd === ADMIN_PASS) {
-    document.getElementById('adminLoginPrompt').style.display = 'none';
-    document.getElementById('adminPasswordInput').value = '';
-    localStorage.setItem('robig_admin_session', 'true');
-    localStorage.setItem('robig_unlocked', 'true');
-    localStorage.setItem('robig_unlock_code', 'ADMIN');
-    document.getElementById('accessGateOverlay').style.display = 'none';
-    document.body.style.overflow = '';
-    document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
-    showToast('🛡️ Admin লগইন হয়েছে!');
-    openAdminPanel();
-  } else {
-    errEl.textContent = '❌ ভুল password।';
-    errEl.style.display = 'block';
-  }
-}
-
-function isAdminSession() {
-  return localStorage.getItem('robig_admin_session') === 'true';
-}
-
-function adminLogout() {
-  localStorage.removeItem('robig_admin_session');
-  localStorage.removeItem('robig_unlocked');
-  document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
-  document.getElementById('adminPanelModalBg').classList.remove('show');
-  showToast('🚪 Admin logout হয়েছে');
-  checkAccessGate();
-}
-
-// ── Gist Setup ──
-function openGistSetup() {
-  const cfg = getGistConfig();
-  if (cfg?.token) document.getElementById('gistTokenInput').value = cfg.token;
-  if (cfg?.gistId) document.getElementById('gistIdInput').value = cfg.gistId;
-  document.getElementById('gistSetupError').style.display = 'none';
-  document.getElementById('gistSetupSuccess').style.display = 'none';
-  document.getElementById('gistSetupModalBg').classList.add('show');
-}
-
-async function saveGistConfig() {
-  const token = document.getElementById('gistTokenInput').value.trim();
-  const gistId = document.getElementById('gistIdInput').value.trim();
-  const errEl = document.getElementById('gistSetupError');
-  const okEl = document.getElementById('gistSetupSuccess');
-  const btn = document.getElementById('gistSetupSaveBtn');
-  errEl.style.display = 'none'; okEl.style.display = 'none';
-  if (!token) { errEl.textContent = '❌ Token দিন।'; errEl.style.display='block'; return; }
-  btn.disabled = true; btn.textContent = '⏳ Connecting…';
-  try {
-    const userRes = await fetch('https://api.github.com/user', { headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' } });
-    if (!userRes.ok) throw new Error('Invalid token');
-    let cfg = { token, gistId: gistId || null };
-    if (!cfg.gistId) {
-      const body = { description: 'ROBI Graphics — Access Codes', public: true, files: { [GIST_FILENAME]: { content: '[]' } } };
-      const res = await gistFetch('POST', null, token, body);
-      cfg.gistId = res.id;
-    } else {
-      await gistFetch('GET', cfg.gistId, token);
-    }
-    saveGistConfig_local(cfg);
-    localStorage.setItem('robig_public_gist_id', cfg.gistId);
-    const codes = await readGistCodes(cfg);
-    if (codes) setCachedCodes(codes);
-    okEl.textContent = '✅ Connected! Gist ID: ' + cfg.gistId;
-    okEl.style.display = 'block';
-    btn.disabled = false; btn.textContent = '✅ Save & Connect';
-    showToast('✅ GitHub Gist connected!');
-    setTimeout(() => { document.getElementById('gistSetupModalBg').classList.remove('show'); updateGistStatusUI(); syncFromGist(false); }, 1500);
-  } catch(e) {
-    errEl.textContent = '❌ Error: ' + e.message;
-    errEl.style.display = 'block';
-    btn.disabled = false; btn.textContent = '✅ Save & Connect';
-  }
-}
-
-// ── Admin Panel ──
-function updateGistStatusUI() {
-  const cfg = getGistConfig();
-  const badge = document.getElementById('gistStatusBadge');
-  const connBar = document.getElementById('gistConnectedBar');
-  const noBar = document.getElementById('gistNotConnectedBar');
-  const connId = document.getElementById('gistConnectedId');
-  if (cfg?.gistId) {
-    if (badge) { badge.style.background='rgba(0,255,136,0.1)'; badge.style.color='var(--green)'; badge.style.borderColor='rgba(0,255,136,0.3)'; badge.textContent='✅ Gist Connected'; }
-    if (connBar) connBar.style.display='flex';
-    if (noBar) noBar.style.display='none';
-    if (connId) connId.textContent='gist.github.com/' + cfg.gistId;
-  } else {
-    if (badge) { badge.style.background='rgba(255,107,0,0.12)'; badge.style.color='var(--accent2)'; badge.style.borderColor='rgba(255,107,0,0.3)'; badge.textContent='⚠️ Not Connected'; }
-    if (connBar) connBar.style.display='none';
-    if (noBar) noBar.style.display='flex';
-  }
-}
-
-async function syncFromGist(showMsg=true) {
-  const btn = document.getElementById('syncBtn');
-  if (btn) { btn.disabled=true; btn.textContent='⏳ Syncing…'; }
-  try {
-    const codes = await fetchAndCacheCodes();
-    renderAdminCodesList(codes);
-    if (showMsg) showToast('✅ Sync হয়েছে — ' + codes.length + 'টি code');
-  } catch(e) {
-    if (showMsg) showToast('❌ Sync error: ' + e.message);
-  } finally {
-    if (btn) { btn.disabled=false; btn.textContent='🔄 Sync'; }
-  }
-}
-
-async function openAdminPanel() {
-  updateGistStatusUI();
-  const codes = getCachedCodes() || [];
-  renderAdminCodesList(codes);
-  document.getElementById('adminPanelModalBg').classList.add('show');
-  syncFromGist(false);
-}
-
-async function generateNewAccessCode() {
-  const labelInput = document.getElementById('newUserLabelInput');
-  const btn = document.getElementById('genCodeBtn');
-  let label = labelInput.value.trim();
-  if (!label) { showToast('⚠️ User নাম দিন'); return; }
-  const code = (Math.random().toString(36).slice(2,5) + Math.random().toString(36).slice(2,5)).toUpperCase();
-  const formatted = code.slice(0,4) + '-' + code.slice(4,6);
-  const cfg = getGistConfig();
-  let codes = getCachedCodes() || [];
-  const newEntry = { label, code: formatted, createdAt: new Date().toISOString(), active: true, used: false, useCount: 0 };
-  codes.push(newEntry);
-  btn.disabled=true; btn.textContent='⏳ Saving…';
-  try {
-    if (cfg?.gistId) { await writeGistCodes(cfg, codes); setCachedCodes(codes); showToast('✅ Code তৈরি: ' + formatted); }
-    else { setCachedCodes(codes); showToast('✅ Code তৈরি: ' + formatted + ' ⚠️ Gist setup করুন'); }
-    labelInput.value = '';
-    renderAdminCodesList(codes);
-  } catch(e) { codes.pop(); showToast('❌ Error: ' + e.message); }
-  finally { btn.disabled=false; btn.textContent='+ Generate'; }
-}
-
-function escapeHtmlAdmin(s) {
-  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
-
-function renderAdminCodesList(codes) {
-  if (!codes) codes = getCachedCodes() || [];
-  const container = document.getElementById('adminCodesList');
-  const total = codes.length;
-  const used = codes.filter(c=>c.used).length;
-  document.getElementById('adminTotalCodesCount').textContent = total;
-  document.getElementById('adminUsedCodesCount').textContent = used;
-  document.getElementById('adminUnusedCodesCount').textContent = total - used;
-  if (total === 0) { container.innerHTML='<p style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">এখনো কোনো code তৈরি হয়নি</p>'; return; }
-  container.innerHTML = codes.slice().reverse().map(c => `
-    <div style="display:flex;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);gap:10px;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:600;color:${c.active===false?'var(--muted)':'var(--text)'};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtmlAdmin(c.label)}</div>
-        <div style="font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;">${c.used?'✅ Used ('+c.useCount+'x)':'⏳ Not used'} · ${new Date(c.createdAt).toLocaleDateString('bn-BD')}</div>
-      </div>
-      <div style="font-family:'Space Mono',monospace;font-weight:700;color:${c.active===false?'var(--muted)':'var(--accent)'};font-size:14px;letter-spacing:1px;text-decoration:${c.active===false?'line-through':'none'}">${c.code}</div>
-      <button class="btn-icon-mini" onclick="navigator.clipboard.writeText('${c.code}');showToast('📋 Copied!')">📋</button>
-      <button class="btn-icon-mini" style="color:${c.active===false?'var(--green)':'var(--accent2)'};" onclick="toggleCodeActive('${c.code}')">${c.active===false?'✅':'⏸'}</button>
-      <button class="btn-icon-mini" style="color:var(--red);" onclick="deleteAccessCode('${c.code}')">🗑</button>
-    </div>`).join('');
-}
-
-async function toggleCodeActive(code) {
-  const cfg = getGistConfig();
-  const codes = getCachedCodes() || [];
-  const entry = codes.find(c=>c.code===code);
-  if (!entry) return;
-  entry.active = entry.active === false ? true : false;
-  try { if (cfg?.gistId) await writeGistCodes(cfg, codes); setCachedCodes(codes); renderAdminCodesList(codes); showToast(entry.active?'✅ Activated':'⏸ Deactivated'); }
-  catch(e) { showToast('❌ Error: '+e.message); }
-}
-
-async function deleteAccessCode(code) {
-  const cfg = getGistConfig();
-  let codes = (getCachedCodes()||[]).filter(c=>c.code!==code);
-  try { if (cfg?.gistId) await writeGistCodes(cfg, codes); setCachedCodes(codes); renderAdminCodesList(codes); showToast('🗑 Deleted'); }
-  catch(e) { showToast('❌ Error: '+e.message); }
-}
-
-function exportCodesList() {
-  const codes = getCachedCodes() || [];
-  if (!codes.length) { showToast('⚠️ কোনো code নেই'); return; }
-  const csv = ['Label,Code,Created,Active,Used,UseCount'].concat(codes.map(c=>['"'+(c.label||'').replace(/"/g,'""')+'"',c.code,c.createdAt,c.active===false?'No':'Yes',c.used?'Yes':'No',c.useCount||0].join(','))).join('
-');
-  const blob = new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href=url; a.download='robi-access-codes.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-  showToast('✅ CSV downloaded');
-}
-
-// Run on load
-document.addEventListener('DOMContentLoaded', checkAccessGate);
-if (document.readyState !== 'loading') checkAccessGate();
-
-// ════════════════════════════════════════════════════════════════
-// ===== END ACCESS CONTROL SYSTEM =====
-// ════════════════════════════════════════════════════════════════
+// Access control system removed — tool is open to all users
 
 // ===== STATE =====
 let files = [];
@@ -2996,76 +2476,39 @@ Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
     vecteezy:    'Optimize for Vecteezy. Vector and illustration focused metadata.',
     general:     'Optimize for ALL major stock platforms (Adobe Stock, Shutterstock, Getty, Freepik), with special attention to Adobe Stock\'s ranking algorithm since it rewards precise keyword targeting most heavily.'
   };
-  // Adobe Stock: custom SEO Ultimate Prompt v6
-  if (platform === 'adobe') {
+
+  // ── Adobe Stock: use the Ultimate SEO prompt v6 ──────────────────────────
+  if (platform === 'adobe' || platform === 'general') {
+    const adobeCatNum = getAdobeCategoryNum();
     return `You are an Elite Adobe Stock SEO Expert, Commercial Metadata Strategist, Search Intent Analyst, Semantic SEO Specialist, AI Vision Expert, and Global Stock Marketplace Consultant.
 
 Your mission is to generate premium Adobe Stock metadata that maximizes discoverability, buyer search intent, semantic relevance, click-through rate (CTR), and long-term download potential while fully complying with Adobe Stock Contributor Guidelines.
 
-Your goal is NOT simply to write metadata.
-Your goal is to think like a professional Adobe Stock buyer, SEO expert, and marketplace search algorithm.
+Your goal is NOT simply to write metadata. Your goal is to think like a professional Adobe Stock buyer, SEO expert, and marketplace search algorithm.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PHASE 1 — IMAGE ANALYSIS
-
 Carefully analyze the uploaded image, vector, illustration, or AI artwork.
 Identify only what is actually visible.
-
-Analyze:
-• Main Subject • Secondary Subjects • Objects • Design Style • Artistic Style • Illustration Type • Composition • Perspective • Background • Pattern • Shapes • Colors • Texture • Mood • Emotion (if visually obvious) • Industry • Audience • Commercial Usage • Marketing Usage • Business Usage • Print Usage • Digital Usage • Seasonal Relevance • Cultural Relevance
-
+Analyze: Main Subject, Secondary Subjects, Objects, Design Style, Artistic Style, Illustration Type, Composition, Perspective, Background, Pattern, Shapes, Colors, Texture, Mood, Emotion (if visually obvious), Industry, Audience, Commercial Usage, Marketing Usage, Business Usage, Print Usage, Digital Usage, Seasonal Relevance, Cultural Relevance.
 Never guess. Never add objects that do not exist.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PHASE 2 — LIVE MARKET RESEARCH & TREND ANALYSIS
-
-If live web access is available:
-Research current commercial search trends related to the uploaded asset.
-Analyze: Current commercial search trends, Buyer search intent, Search demand, Commercial relevance, Current design trends, Industry terminology, Marketing terminology, Business terminology, Seasonal demand (if relevant).
-
-If live web access is NOT available:
-Generate metadata using the strongest commercially relevant keywords based on buyer search intent, semantic SEO, and Adobe Stock best practices.
-Never invent trending keywords.
-
-IMPORTANT RULES:
-• Include trending keywords ONLY if they accurately describe the uploaded asset.
-• Never force a trending keyword.
-• Relevance is always more important than popularity.
-• Never include keywords only because they are popular.
-• Every keyword must improve discoverability.
-• Every keyword must improve buyer search intent.
-• Every keyword must have commercial value.
-• Avoid generic keywords. Avoid filler keywords. Avoid weak keywords. Avoid misleading keywords.
-• Prioritize keywords that real Adobe Stock buyers are likely to search.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PHASE 3 — KEYWORD STRATEGY
-
-Generate EXACTLY ${kwCount} UNIQUE keywords.
-
-Keyword Structure:
-
-Keywords 1–10: Strongest commercial keywords, highest buyer search intent, highest ranking potential. Include approximately 7–10 trending commercial keywords ONLY if relevant.
-
-Keywords 11–20: Core subject keywords, primary SEO keywords, main object keywords.
-
-Keywords 21–30: Semantic SEO keywords, alternative search phrases, industry terminology, design terminology.
-
-Keywords 31–40: Commercial usage, marketing, branding, advertising, print, web, social media, packaging, business.
-
-Keywords 41–${kwCount}: Long-tail keywords, supporting semantic keywords, natural search variations, contextual buyer keywords.
+PHASE 2 — KEYWORD STRATEGY
+Generate EXACTLY 49 UNIQUE keywords structured as follows:
+• Keywords 1–10: Strongest commercial keywords, highest buyer search intent, highest ranking potential, include approximately 7–10 trending commercial keywords ONLY if relevant
+• Keywords 11–20: Core subject keywords, primary SEO keywords, main object keywords
+• Keywords 21–30: Semantic SEO keywords, alternative search phrases, industry terminology, design terminology
+• Keywords 31–40: Commercial usage, marketing, branding, advertising, print, web, social media, packaging, business
+• Keywords 41–49: Long-tail keywords, supporting semantic keywords, natural search variations, contextual buyer keywords
 
 KEYWORD RULES:
-• Generate EXACTLY ${kwCount} keywords.
-• Every keyword must be unique. No duplicate keywords.
-• No irrelevant keywords. No keyword stuffing. No filler keywords. No misleading keywords.
-• Use singular words unless plural is the standard search term.
-• Include only keywords visible or directly implied by the asset.
-• Every keyword must earn its place.
-• Every keyword must contribute to SEO or buyer intent.
+• Generate EXACTLY 49 keywords
+• Every keyword must be unique — no duplicates
+• No irrelevant keywords, no keyword stuffing, no filler keywords, no misleading keywords
+• Use singular words unless plural is the standard search term
+• Include only keywords visible or directly implied by the asset
+• Every keyword must earn its place and contribute to SEO or buyer intent
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TITLE RULES (max ${titleLen} chars):
+TITLE RULES:
 • 60–80 characters
 • Natural English
 • Start with the strongest commercial keyword
@@ -3073,73 +2516,100 @@ TITLE RULES (max ${titleLen} chars):
 • Human readable, professional, buyer-focused
 • No keyword stuffing
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-DESCRIPTION RULES (max ${descLen} chars):
+DESCRIPTION RULES:
 • 20–40 words
 • Natural English
-• Describe the subject, mention style
+• Describe the subject
+• Mention style
 • Mention commercial usage when appropriate
 • Human readable, SEO friendly
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CATEGORY
-Select the single most accurate Adobe Stock category (official Adobe Stock category name, category_number 1–28).
+CATEGORY: Select the single most accurate Adobe Stock category. Category number: ${adobeCatNum} (${ADOBE_CATEGORIES[adobeCatNum] || 'Graphic Resources'}).
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-FINAL QUALITY CHECK — verify before output:
-✓ Exactly ${kwCount} keywords
-✓ No duplicate keywords
-✓ No irrelevant keywords
-✓ No wasted keyword slots
-✓ Strong buyer search intent
-✓ Strong commercial relevance
-✓ Strong semantic SEO
-✓ Natural English
-✓ Adobe Stock compliant
-✓ Human readable
-✓ Upload-ready metadata
+ALSO generate an AI-image-recreation prompt:
+Write a detailed prompt (for Midjourney/DALL-E/Stable Diffusion) that could recreate this exact image. Include: subject, art style, color palette, composition, lighting, mood, rendering technique. This is SEPARATE from the stock metadata.
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ALSO generate an AI-image-recreation prompt (for Midjourney/DALL-E/Stable Diffusion) that could recreate this exact image. Include: subject, art style, color palette, composition, lighting, mood, rendering technique.
+FINAL QUALITY CHECK — before finalizing, verify:
+✓ Exactly 49 keywords ✓ No duplicate keywords ✓ No irrelevant keywords ✓ No wasted keyword slots ✓ Strong buyer search intent ✓ Strong commercial relevance ✓ Strong semantic SEO ✓ Natural English ✓ Adobe Stock compliant ✓ Human readable ✓ Upload-ready metadata
 
 Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
 {
   "title": "title here",
   "description": "description here",
-  "keywords": ["keyword1", "keyword2", "...", "keyword${kwCount}"],
-  "category": "Adobe Stock Category Name",
-  "category_number": 1,
+  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7", "keyword8", "keyword9", "keyword10", "keyword11", "keyword12", "keyword13", "keyword14", "keyword15", "keyword16", "keyword17", "keyword18", "keyword19", "keyword20", "keyword21", "keyword22", "keyword23", "keyword24", "keyword25", "keyword26", "keyword27", "keyword28", "keyword29", "keyword30", "keyword31", "keyword32", "keyword33", "keyword34", "keyword35", "keyword36", "keyword37", "keyword38", "keyword39", "keyword40", "keyword41", "keyword42", "keyword43", "keyword44", "keyword45", "keyword46", "keyword47", "keyword48", "keyword49"],
+  "category": "Category Name",
+  "category_number": ${adobeCatNum},
   "recreation_prompt": "detailed AI image generation prompt to recreate this exact image"
-}\`;
+}`;
   }
 
-  // Other platforms: general optimized prompt
-  return `You are an elite professional stock metadata strategist helping contributors rank in TOP search results on major stock platforms.
+  // ── Other platforms: use the standard multi-platform prompt ──────────────
+  return `You are an elite professional stock metadata strategist who has helped thousands of contributors rank in the TOP search results on Adobe Stock, Shutterstock, Freepik, and other stock platforms. Your metadata directly drives discoverability, click-through rate, and sales.
 
-Carefully analyze the uploaded image pixel by pixel. Identify: main subject, secondary elements, art style, color palette, composition, mood, and commercial use cases. Metadata must be 100% accurate — never invent details not visible in the image.
+Carefully analyze the uploaded image/design pixel by pixel. Identify: main subject, secondary elements, art style, color palette, composition, mood, and realistic commercial use cases. Your metadata must be 100% accurate to what is visibly present — never invent objects, colors, or styles that are not in the image. Accuracy + search-optimization together are what make metadata rank.
 
 Platform: ${platform.toUpperCase()}
 ${platformFocus[platform] || platformFocus.general}
 
-TITLE (max ${titleLen} chars): Start with strongest keyword. Natural, professional, buyer-focused. Include subject + style + design type.
+═══════════════════════════════
+TITLE RULES (max ${titleLen} chars):
+═══════════════════════════════
+- Start IMMEDIATELY with the single most important, highest-search-volume keyword/subject — this is what search algorithms weight most
+- Natural, professional, human-readable sentence — never a robotic keyword dump
+- 60-120 characters ideally — long enough to be descriptive, short enough to display fully in search results
+- Include: subject + style (flat/3D/line art/realistic/minimalist/watercolor/etc.) + design type (icon/illustration/vector/pattern/background/etc.)
+- Use buyer-intent, commercially-relevant language a designer or marketer would actually search for
+- Title must exactly match the visible content — zero false claims, zero exaggeration
+- Avoid generic filler words ("image of", "picture showing") — every word must add search value
 
-DESCRIPTION (max ${descLen} chars): 1-3 sentences. Describe subject, style, colors, composition, commercial use. No keyword stuffing.
+═══════════════════════════════
+DESCRIPTION RULES (max ${descLen} chars):
+═══════════════════════════════
+- 1-3 natural, professional, flowing sentences (not a list)
+- Clearly describe what is visible: subject, style, key visual elements, dominant colors, composition/layout, overall purpose or mood
+- Naturally weave in 2-3 secondary search terms not already in the title (this expands searchability without keyword stuffing)
+- Mention realistic commercial use cases (web design, branding, social media, print, packaging, UI, marketing materials) ONLY if genuinely relevant to what's shown
+- Zero keyword stuffing, zero invented details, reads like a human professional wrote it
 
-KEYWORDS — exactly ${kwCount} keywords, 3-tier structure:
-TIER 1 (~35%): Highest-value, highest-search-volume core terms.
-TIER 2 (~35%): Style, color, mood, secondary elements, design technique terms.
-TIER 3 (~30%): Long-tail phrases, industry/niche terms, specific use-cases.
-Rules: No duplicates, no brand names, no invisible elements, no spam.
+═══════════════════════════════
+KEYWORD RULES — 3-TIER RANKING STRUCTURE (exactly ${kwCount} keywords):
+═══════════════════════════════
+Every keyword must be visible, relevant, or directly inferable from the image. This is the MOST IMPORTANT ranking factor — order matters because stock platforms weight earlier keywords higher.
 
+**TIER 1 — BEST/CORE keywords (first ~35% of ${kwCount}):**
+The absolute highest-value, highest-search-volume terms a buyer would type FIRST when looking for this exact asset. Main subject name, primary style, and the single most defining characteristic. These must be the strongest possible match to real buyer search queries.
+
+**TIER 2 — MIDDLE/SUPPORTING keywords (next ~35% of ${kwCount}):**
+Related style descriptors, color names (only visible colors), composition terms, mood/emotion words, secondary visible objects, design technique terms (vector, flat design, gradient, isometric, hand-drawn, etc.) — these widen the net for related searches.
+
+**TIER 3 — ACTUAL/LONG-TAIL keywords (final ~30% of ${kwCount}):**
+Specific use-case phrases, industry/niche terms, longer descriptive combinations (2-3 word phrases), and highly specific details that a buyer with a precise need would search for. These capture niche, lower-competition searches that convert well.
+
+Strict keyword requirements:
+- No duplicates (case-insensitive)
+- No brand names, no celebrity names, no trademarked terms
+- No colors, objects, or styles that are NOT visible in the image
+- No spam, no misleading or unrelated terms
+- Single words OR short natural phrases (2-3 words) — whatever best matches real search behavior
+- Every single keyword should be something this exact file could legitimately rank for
+
+═══════════════════════════════
 CATEGORY: ${platformCategory[platform] || platformCategory.general}
+═══════════════════════════════
+Choose ONLY the single most accurate category that matches the visible content.
 
-ALSO generate an AI-image-recreation prompt for Midjourney/DALL-E/Stable Diffusion.
+═══════════════════════════════
+ALSO generate an AI-image-recreation prompt:
+═══════════════════════════════
+- Write a detailed prompt (for Midjourney/DALL-E/Stable Diffusion style AI image generators) that could be used to recreate this exact image.
+- Include: subject, exact appearance, art style, color palette, composition, lighting, mood, rendering technique — everything needed to visually reproduce it.
+- This is SEPARATE from the stock metadata fields above — it is a reverse-engineered generation prompt, not a stock listing field. It will be saved to a different file, never mixed into the metadata CSV.
 
 Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
 {
   "title": "title here",
   "description": "description here",
-  "keywords": ["keyword1", "keyword2", "...", "keyword${kwCount}"],
+  "keywords": ["tier1-keyword1", "tier1-keyword2", "...", "tier3-last-keyword"],
   "category": "Category Name",
   "category_number": 1,
   "recreation_prompt": "detailed AI image generation prompt to recreate this exact image"
@@ -3455,11 +2925,7 @@ function renderResult(item, idx) {
         <span class="cat-badge">📂 ${catNum ? '#'+catNum+' · ' : ''}${catName}</span>
       </div>` : ''}
       <div class="result-field">
-        <div class="result-field-label">
-          Keywords (${kws.length})
-          <button class="btn-icon-mini" onclick="copyField(${idx},'keywords')" title="Copy Keywords">📋</button>
-          <button class="btn-icon-mini" onclick="openKwEditor(${idx})" title="Edit Keywords" style="color:var(--accent);">✏️</button>
-        </div>
+        <div class="result-field-label">Keywords <button class="btn-icon-mini" onclick="copyField(${idx},'keywords')" title="Copy Keywords">📋</button></div>
         <div class="keywords-wrap" id="kw-${idx}">${kwHtml}</div>
       </div>
       ${md.recreation_prompt ? `<div class="result-field" style="background:rgba(255,193,7,0.06);border:1px solid rgba(255,193,7,0.2);border-radius:8px;padding:10px;margin-top:4px;">
@@ -3984,11 +3450,6 @@ function togglePause() {
 
 // ===== MODAL =====
 function openModal() {
-  // Sync modal provider with sidebar provider
-  const sidebarProvider = document.getElementById('aiProvider').value;
-  const provMap = { gemini:'gemini', openai:'openai', openrouter:'openrouter', grok:'grok' };
-  const modalProv = document.getElementById('modalProvider');
-  if (provMap[sidebarProvider]) modalProv.value = sidebarProvider;
   document.getElementById('modalBg').classList.add('show');
   updateModalKey();
 }
@@ -4002,12 +3463,7 @@ function updateModalKey() {
 function saveApiKey() {
   const p = document.getElementById('modalProvider').value;
   const v = document.getElementById('apiKeyInput').value.trim();
-  if (v) {
-    apiKeys[p] = v;
-  } else {
-    delete apiKeys[p];
-  }
-  localStorage.setItem('robig_keys', JSON.stringify(apiKeys));
+  if (v) { apiKeys[p] = v; localStorage.setItem('robig_keys', JSON.stringify(apiKeys)); }
   document.getElementById('keyStatus').textContent = v ? '✅ Key saved' : '⚠ No key saved';
 }
 async function testKey() {
@@ -4254,6 +3710,51 @@ function clearPromptFiles() {
   showToast('🗑 Cleared');
 }
 
+function buildColoringPageInstruction() {
+  return `You are a professional coloring book illustrator and vector line-art designer specialized in commercial microstock content.
+
+Analyze the uploaded image carefully and generate a detailed AI image generation prompt that will create a premium-quality coloring page illustration optimized for Adobe Stock, Shutterstock, Freepik, Etsy coloring books, KDP interiors, printable activity books, educational worksheets, and professional SVG/EPS vector conversion workflows.
+
+CORE OBJECTIVE:
+The prompt must instruct the AI to convert the original subject into an exceptionally clean black-and-white coloring page while preserving the original proportions, recognizable anatomy, silhouette, character identity, and key visual features.
+
+STYLE REQUIREMENTS TO INCLUDE IN PROMPT:
+• Pure black outlines only, white background only
+• No color, no grayscale, no gray shading, no gradients, no shadows, no lighting effects, no textures, no transparency
+• Professional coloring book appearance, commercial-quality printable artwork
+• Strong black-and-white contrast
+
+LINE ART REQUIREMENTS:
+• Smooth vector-style outlines, crisp edges, clean curves
+• Consistent stroke thickness, sharp readable contours
+• Professional ink drawing appearance, clear shape separation
+• High readability, print-friendly linework
+
+VECTOR TRACING OPTIMIZATION (include in prompt):
+• Fully closed shapes, continuous clean paths
+• No open contours, no broken paths, no disconnected outlines
+• SVG/EPS/Adobe Illustrator ready
+
+DETAIL BALANCE:
+• Large and medium coloring areas, comfortable coloring spaces
+• Clear visual structure, easy-to-color sections
+• Avoid excessive micro details, tiny enclosed spaces, overcrowded sections
+
+COMPOSITION: Centered, balanced, strong visual hierarchy, proper margins, fully visible subject, no cropped elements.
+
+NEGATIVE PROMPT elements to include: color, colored, grayscale, grey shading, shadow, texture, watercolor, painting, pencil shading, realistic rendering, blur, rough sketch, messy lines, broken paths, open shapes, double outlines, noise, text, logo, watermark, extra limbs, duplicate elements, cluttered background, decorative frame, AI artifacts
+
+Analyze the uploaded image subject carefully, then create the coloring page generation prompt based on that subject.
+
+Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
+{
+  "prompt": "the full coloring page recreation prompt here — describe the subject from the image in detail, then apply all coloring book style requirements",
+  "negative_prompt": "color, colored, grayscale, grey shading, gray shading, shadow, gradient, texture, watercolor, painting, oil paint, pencil shading, marker rendering, realistic rendering, blur, soft focus, rough sketch, messy lines, broken paths, disconnected outlines, open shapes, double outlines, overlapping strokes, incomplete contours, low quality, artifacts, noise, text, logo, watermark, signature, cropped subject, cut off body parts, malformed anatomy, extra limbs, duplicate elements, cluttered background, decorative frame, busy composition, distortion, AI artifacts",
+  "style_notes": "Coloring book line art — pure black outlines on white, vector-optimized, KDP/Adobe Stock ready",
+  "subject_summary": "coloring page: [3-5 word subject description from the image]"
+}`;
+}
+
 function buildImageToPromptInstruction(targetTool, style) {
   const toolGuides = {
     midjourney: 'Format the prompt for Midjourney: comma-separated descriptive phrases, include style/lighting/camera keywords, end with relevant parameters like "--ar 16:9 --v 6" style suggestions (describe what would be appropriate, do not need exact flags).',
@@ -4301,7 +3802,14 @@ async function startPromptGeneration() {
 
   const targetTool = document.getElementById('promptTargetTool').value;
   const style = document.getElementById('promptStyle').value;
-  const instruction = buildImageToPromptInstruction(targetTool, style);
+  const coloringMode = document.getElementById('coloringModeToggle').classList.contains('on');
+
+  let instruction;
+  if (coloringMode) {
+    instruction = buildColoringPageInstruction();
+  } else {
+    instruction = buildImageToPromptInstruction(targetTool, style);
+  }
 
   const btn = document.getElementById('promptGenBtn');
   btn.disabled = true; btn.textContent = '⏳ Generating…';
@@ -4353,7 +3861,8 @@ async function startPromptGeneration() {
   btn.disabled = false; btn.textContent = '✨ Generate Prompts';
   const successCount = promptResults.filter(r => !r.error).length;
   if (successCount > 0) document.getElementById('dlPromptResultsBtn').style.display = 'flex';
-  showToast(`✅ ${successCount}/${total}টি prompt তৈরি হয়েছে!`);
+  const modeLabel = coloringMode ? 'Coloring Page' : 'prompt';
+  showToast(`✅ ${successCount}/${total}টি ${modeLabel} তৈরি হয়েছে!`);
 }
 
 function renderPromptResult(item, idx) {
@@ -4447,63 +3956,11 @@ function downloadAllGeneratedPrompts() {
 }
 
 // Close modals on bg click
-['modalBg','settingsModalBg','usersModalBg','vectorModalBg','historyModalBg','supportModalBg','adminPanelModalBg','gistSetupModalBg','kwEditorModalBg'].forEach(id => {
+['modalBg','settingsModalBg','usersModalBg','vectorModalBg','historyModalBg','supportModalBg'].forEach(id => {
   document.getElementById(id).addEventListener('click', function(e) {
     if (e.target === this) this.classList.remove('show');
   });
 });
-
-// ===== KEYWORD EDITOR =====
-let kwEditorIdx = -1;
-
-function openKwEditor(idx) {
-  kwEditorIdx = idx;
-  const kws = Array.isArray(results[idx]?.metadata?.keywords) ? results[idx].metadata.keywords : [];
-  document.getElementById('kwEditorTextarea').value = kws.join('\n');
-  updateKwEditorCount();
-  document.getElementById('kwEditorModalBg').classList.add('show');
-}
-
-function updateKwEditorCount() {
-  const lines = document.getElementById('kwEditorTextarea').value
-    .split('\n').map(s => s.trim()).filter(Boolean);
-  const countEl = document.getElementById('kwEditorCount');
-  const warnEl  = document.getElementById('kwEditorWarn');
-  countEl.textContent = lines.length + ' keywords';
-  countEl.style.color = lines.length > 50 ? 'var(--red)' : lines.length >= 45 ? 'var(--green)' : 'var(--accent)';
-  warnEl.style.display = (lines.length !== 49) ? 'inline' : 'none';
-}
-
-function saveKwEditor() {
-  if (kwEditorIdx < 0 || !results[kwEditorIdx]) return;
-  const lines = document.getElementById('kwEditorTextarea').value
-    .split('\n').map(s => s.trim()).filter(Boolean);
-  results[kwEditorIdx].metadata.keywords = lines;
-  saveToHistory(results);
-  document.getElementById('kwEditorModalBg').classList.remove('show');
-  const card = document.getElementById('result-' + kwEditorIdx);
-  if (card) card.remove();
-  renderResult(results[kwEditorIdx], kwEditorIdx);
-  showToast('✅ ' + lines.length + 'টি keyword save হয়েছে');
-}
-
 </script>
-
-<!-- ===== KEYWORD EDITOR MODAL ===== -->
-<div class="modal-bg" id="kwEditorModalBg">
-  <div class="modal" style="width:600px;max-width:96vw;">
-    <h2 style="margin-bottom:6px;">✏️ Keywords Edit করুন</h2>
-    <p style="color:var(--muted);font-size:13px;margin-bottom:14px;">প্রতি লাইনে একটি keyword। সরাসরি edit করুন — সব পরিবর্তন CSV-তেও যাবে।</p>
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-      <span id="kwEditorCount" style="font-size:13px;color:var(--accent);font-family:'Space Mono',monospace;">0 keywords</span>
-      <span id="kwEditorWarn" style="font-size:12px;color:var(--accent2);display:none;">⚠️ 49 keywords recommended for Adobe Stock</span>
-    </div>
-    <textarea id="kwEditorTextarea" style="width:100%;height:320px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-size:13px;font-family:'Space Mono',monospace;padding:12px;resize:vertical;line-height:1.7;" oninput="updateKwEditorCount()"></textarea>
-    <div class="modal-btns" style="margin-top:14px;">
-      <button class="btn btn-generate" style="flex:2;justify-content:center;" onclick="saveKwEditor()">✅ Save Keywords</button>
-      <button class="btn btn-pause" style="flex:1;justify-content:center;" onclick="document.getElementById('kwEditorModalBg').classList.remove('show')">Cancel</button>
-    </div>
-  </div>
-</div>
 </body>
 </html>
