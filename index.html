@@ -2493,15 +2493,15 @@ Analyze: Main Subject, Secondary Subjects, Objects, Design Style, Artistic Style
 Never guess. Never add objects that do not exist.
 
 PHASE 2 — KEYWORD STRATEGY
-Generate EXACTLY 49 UNIQUE keywords structured as follows:
-• Keywords 1–10: Strongest commercial keywords, highest buyer search intent, highest ranking potential, include approximately 7–10 trending commercial keywords ONLY if relevant
-• Keywords 11–20: Core subject keywords, primary SEO keywords, main object keywords
-• Keywords 21–30: Semantic SEO keywords, alternative search phrases, industry terminology, design terminology
-• Keywords 31–40: Commercial usage, marketing, branding, advertising, print, web, social media, packaging, business
-• Keywords 41–49: Long-tail keywords, supporting semantic keywords, natural search variations, contextual buyer keywords
+Generate EXACTLY ${kwCount} UNIQUE keywords structured as follows:
+• Keywords 1–${Math.round(kwCount*0.2)}: Strongest commercial keywords, highest buyer search intent, highest ranking potential, include approximately 7–10 trending commercial keywords ONLY if relevant
+• Keywords ${Math.round(kwCount*0.2)+1}–${Math.round(kwCount*0.4)}: Core subject keywords, primary SEO keywords, main object keywords
+• Keywords ${Math.round(kwCount*0.4)+1}–${Math.round(kwCount*0.6)}: Semantic SEO keywords, alternative search phrases, industry terminology, design terminology
+• Keywords ${Math.round(kwCount*0.6)+1}–${Math.round(kwCount*0.8)}: Commercial usage, marketing, branding, advertising, print, web, social media, packaging, business
+• Keywords ${Math.round(kwCount*0.8)+1}–${kwCount}: Long-tail keywords, supporting semantic keywords, natural search variations, contextual buyer keywords
 
 KEYWORD RULES:
-• Generate EXACTLY 49 keywords
+• Generate EXACTLY ${kwCount} keywords
 • Every keyword must be unique — no duplicates
 • No irrelevant keywords, no keyword stuffing, no filler keywords, no misleading keywords
 • Use singular words unless plural is the standard search term
@@ -2509,7 +2509,7 @@ KEYWORD RULES:
 • Every keyword must earn its place and contribute to SEO or buyer intent
 
 TITLE RULES:
-• 60–80 characters
+• Maximum ${titleLen} characters
 • Natural English
 • Start with the strongest commercial keyword
 • Clearly describe the asset
@@ -2517,7 +2517,7 @@ TITLE RULES:
 • No keyword stuffing
 
 DESCRIPTION RULES:
-• 20–40 words
+• Maximum ${descLen} characters
 • Natural English
 • Describe the subject
 • Mention style
@@ -2530,13 +2530,13 @@ ALSO generate an AI-image-recreation prompt:
 Write a detailed prompt (for Midjourney/DALL-E/Stable Diffusion) that could recreate this exact image. Include: subject, art style, color palette, composition, lighting, mood, rendering technique. This is SEPARATE from the stock metadata.
 
 FINAL QUALITY CHECK — before finalizing, verify:
-✓ Exactly 49 keywords ✓ No duplicate keywords ✓ No irrelevant keywords ✓ No wasted keyword slots ✓ Strong buyer search intent ✓ Strong commercial relevance ✓ Strong semantic SEO ✓ Natural English ✓ Adobe Stock compliant ✓ Human readable ✓ Upload-ready metadata
+✓ Exactly ${kwCount} keywords ✓ No duplicate keywords ✓ No irrelevant keywords ✓ No wasted keyword slots ✓ Strong buyer search intent ✓ Strong commercial relevance ✓ Strong semantic SEO ✓ Natural English ✓ Adobe Stock compliant ✓ Human readable ✓ Upload-ready metadata
 
 Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
 {
-  "title": "title here",
-  "description": "description here",
-  "keywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5", "keyword6", "keyword7", "keyword8", "keyword9", "keyword10", "keyword11", "keyword12", "keyword13", "keyword14", "keyword15", "keyword16", "keyword17", "keyword18", "keyword19", "keyword20", "keyword21", "keyword22", "keyword23", "keyword24", "keyword25", "keyword26", "keyword27", "keyword28", "keyword29", "keyword30", "keyword31", "keyword32", "keyword33", "keyword34", "keyword35", "keyword36", "keyword37", "keyword38", "keyword39", "keyword40", "keyword41", "keyword42", "keyword43", "keyword44", "keyword45", "keyword46", "keyword47", "keyword48", "keyword49"],
+  "title": "title here (max ${titleLen} chars)",
+  "description": "description here (max ${descLen} chars)",
+  "keywords": ["kw1", "kw2", "...exactly ${kwCount} keywords total..."],
   "category": "Category Name",
   "category_number": ${adobeCatNum},
   "recreation_prompt": "detailed AI image generation prompt to recreate this exact image"
