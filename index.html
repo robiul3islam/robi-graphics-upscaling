@@ -281,14 +281,41 @@
     gap: 8px; min-height: 0;
   }
   .preview-item {
-    aspect-ratio: 1; border-radius: 8px; background: var(--bg2);
+    aspect-ratio: 1; border-radius: 8px;
+    /* Checkerboard pattern so transparent PNGs show their transparency,
+       just like Photoshop/Figma — instead of a flat dark box. */
+    background-image:
+      linear-gradient(45deg, #3a3a3a 25%, transparent 25%),
+      linear-gradient(-45deg, #3a3a3a 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #3a3a3a 75%),
+      linear-gradient(-45deg, transparent 75%, #3a3a3a 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    background-color: #232323;
     border: 1px solid var(--border); overflow: hidden; position: relative;
-    cursor: pointer; transition: all 0.2s;
+    cursor: pointer; transition: border-color 0.2s, transform 0.2s;
+    order: 0;
   }
   .preview-item:hover { border-color: var(--accent); transform: scale(1.05); }
   .preview-item img { width: 100%; height: 100%; object-fit: cover; }
   .preview-item .rm { position: absolute; top: 3px; right: 3px; background: rgba(255,45,85,0.9); color: white; border: none; cursor: pointer; border-radius: 4px; font-size: 10px; padding: 1px 5px; opacity: 0; transition: opacity 0.2s; }
   .preview-item:hover .rm { opacity: 1; }
+
+  /* Upload entrance — thumbnails spin/pop in nicely instead of popping flatly */
+  @keyframes previewPopIn {
+    0%   { opacity: 0; transform: scale(0.25) rotate(-30deg); }
+    60%  { opacity: 1; transform: scale(1.08) rotate(6deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  }
+  .preview-item.pop-in { animation: previewPopIn 0.55s cubic-bezier(.34,1.56,.64,1) both; }
+
+  /* Once metadata is generated, the item visually settles to the back of
+     the grid (order change) so the front shows what's still pending.
+     The actual sliding motion is handled via a JS FLIP transform — see
+     flipReorder(). */
+  .preview-item.done-ok, .preview-item.done-err { order: 2; }
+  .preview-item.processing { order: 1; }
+
   /* EPS/AI preview processing indicator */
   .preview-item .processing-badge {
     position: absolute; bottom: 3px; left: 3px;
@@ -1217,6 +1244,7 @@ let results = [];
 let generating = false;
 let paused = false;
 let currentPlatform = 'general';
+let poppedInKeys = new Set(); // tracks which preview thumbnails already played their entrance animation
 let apiKeys = JSON.parse(localStorage.getItem('robig_keys') || '{}');
 let parallelWorkers = 5;
 let outputFilename = localStorage.getItem('robig_outname') || 'robi-graphics';
@@ -2056,6 +2084,27 @@ function getPreviewSrc(f) {
   return null;
 }
 
+// FLIP animation: captures the element's position before a CSS class/order
+// change, then animates the visual delta away — used so a thumbnail
+// smoothly *slides* to its new spot in the grid the instant its metadata
+// finishes, instead of jumping there instantly.
+function flipReorder(el, applyChange) {
+  if (!el) { applyChange(); return; }
+  const first = el.getBoundingClientRect();
+  applyChange();
+  const last = el.getBoundingClientRect();
+  const dx = first.left - last.left;
+  const dy = first.top - last.top;
+  if (dx || dy) {
+    el.style.transition = 'none';
+    el.style.transform = `translate(${dx}px, ${dy}px) scale(1.06)`;
+    requestAnimationFrame(() => {
+      el.style.transition = 'transform 0.45s cubic-bezier(.22,.9,.3,1)';
+      el.style.transform = '';
+    });
+  }
+}
+
 function renderPreviews() {
   const grid = document.getElementById('previewGrid');
   const placeholder = document.getElementById('dzPlaceholder');
@@ -2068,6 +2117,7 @@ function renderPreviews() {
   }
   grid.style.display = 'grid';
   placeholder.style.display = 'none';
+  let newCount = 0;
   grid.innerHTML = files.map((f, i) => {
     const src = getPreviewSrc(f);
     const ext = f.name.split('.').pop().toUpperCase();
@@ -2075,7 +2125,9 @@ function renderPreviews() {
     const previewKey = getFileKey(f);
     const hasPreview = isVec && filePreviewMap[previewKey];
     const isProcessing = isVec && !(previewKey in Object.fromEntries(Object.keys(filePreviewMap).map(k=>[k,true])));
-    return `<div class="preview-item" id="prev-${i}" title="${f.name}" onclick="isVectorFile(files[${i}]) && filePreviewMap[getFileKey(files[${i}])] ? openVectorModal(${i}) : null">
+    const isNew = !poppedInKeys.has(previewKey);
+    const popStyle = isNew ? ` style="animation-delay:${Math.min(newCount++, 20) * 35}ms"` : '';
+    return `<div class="preview-item${isNew ? ' pop-in' : ''}" id="prev-${i}"${popStyle} title="${f.name}" onclick="isVectorFile(files[${i}]) && filePreviewMap[getFileKey(files[${i}])] ? openVectorModal(${i}) : null">
       ${src
         ? `<img src="${src}" alt="${f.name}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`
         : isVec
@@ -2092,6 +2144,7 @@ function renderPreviews() {
       <button class="rm" onclick="removeFile(${i},event)">✕</button>
     </div>`;
   }).join('');
+  files.forEach(f => poppedInKeys.add(getFileKey(f)));
 }
 
 function removeFile(i, e) {
@@ -2209,8 +2262,12 @@ async function startGeneration() {
           mimeType = 'image/jpeg';
         } else if (f.type.startsWith('image/')) {
           // Regular image — compress before sending
-          base64 = await compressImageFile(f, 1200, 0.82);
+          const compressed = await compressImageFile(f, 1200, 0.82);
+          base64 = compressed.base64;
           mimeType = 'image/jpeg';
+          if (compressed.transparent) {
+            textContext = '[IMPORTANT: This source file has a TRANSPARENT background (PNG alpha channel). The flattened preview you see uses white only because JPEG cannot carry transparency — the ACTUAL file has no background color at all. Describe it as "isolated on transparent background" / "transparent background" / "PNG cutout" in the title, description, and keywords. Do NOT say "black background" or "white background".]';
+          }
         } else if (isVectorFile(f)) {
           // EPS/AI — try image render first, then text-mode fallback
           if (pctBadge) pctBadge.textContent = '🔍';
@@ -2232,8 +2289,12 @@ async function startGeneration() {
         } else {
           // Unknown type — try compression, fallback raw
           try {
-            base64 = await compressImageFile(f, 1200, 0.82);
+            const compressed = await compressImageFile(f, 1200, 0.82);
+            base64 = compressed.base64;
             mimeType = 'image/jpeg';
+            if (compressed.transparent) {
+              textContext = '[IMPORTANT: This source file has a TRANSPARENT background (alpha channel). Describe it as "isolated on transparent background" in the title, description, and keywords. Do NOT say "black background" or "white background".]';
+            }
           } catch {
             base64 = await fileToBase64(f);
             mimeType = f.type || 'application/octet-stream';
@@ -2251,8 +2312,8 @@ async function startGeneration() {
         // Clear full base64 from memory after render — keeps browser fast on large batches
         // We keep it only if needed for retry; previewSrc is a compressed copy already
         renderResult(results[results.length - 1], results.length - 1);
-        // Per-image: done ok
-        if (prevEl) { prevEl.classList.remove('processing'); prevEl.classList.add('done-ok'); }
+        // Per-image: done ok — smoothly slide it to its new spot in the grid
+        if (prevEl) { flipReorder(prevEl, () => { prevEl.classList.remove('processing'); prevEl.classList.add('done-ok'); }); }
         if (pctBadge) pctBadge.textContent = '✅';
         if (pFill) pFill.style.width = '100%';
         // Update stats
@@ -2262,8 +2323,8 @@ async function startGeneration() {
         results.push({ file: f, base64: null, mimeType: null, previewSrc: null,
           metadata: { error: err.message, title:'Error', description: err.message, keywords:[] } });
         renderResult(results[results.length - 1], results.length - 1);
-        // Per-image: done error
-        if (prevEl) { prevEl.classList.remove('processing'); prevEl.classList.add('done-err'); }
+        // Per-image: done error — same smooth slide-away behavior
+        if (prevEl) { flipReorder(prevEl, () => { prevEl.classList.remove('processing'); prevEl.classList.add('done-err'); }); }
         if (pctBadge) pctBadge.textContent = '❌';
         if (pFill) pFill.style.width = '100%';
       }
@@ -2352,8 +2413,12 @@ async function autoRetryUntilDone() {
           base64 = filePreviewMap[key].split(',')[1];
           mimeType = 'image/jpeg';
         } else if (item.file.type.startsWith('image/')) {
-          base64 = await compressImageFile(item.file, 1200, 0.82);
+          const compressed = await compressImageFile(item.file, 1200, 0.82);
+          base64 = compressed.base64;
           mimeType = 'image/jpeg';
+          if (compressed.transparent) {
+            textContext = '[IMPORTANT: This source file has a TRANSPARENT background (alpha channel). Describe it as "isolated on transparent background" in the title, description, and keywords. Do NOT say "black background" or "white background".]';
+          }
         } else if (isVectorFile(item.file)) {
           const epsResult = await processEPSFile(item.file);
           if (epsResult.type === 'image') {
@@ -4029,7 +4094,11 @@ async function retryFailed() {
             filePreviewMap[key] = epsResult.preview;
           } else { textContext = epsResult.context; }
         } else if (item.file.type.startsWith('image/')) {
-          base64 = await compressImageFile(item.file, 1200, 0.82); mimeType = 'image/jpeg';
+          const compressed = await compressImageFile(item.file, 1200, 0.82);
+          base64 = compressed.base64; mimeType = 'image/jpeg';
+          if (compressed.transparent) {
+            textContext = '[IMPORTANT: This source file has a TRANSPARENT background (alpha channel). Describe it as "isolated on transparent background" in the title, description, and keywords. Do NOT say "black background" or "white background".]';
+          }
         } else {
           base64 = await fileToBase64(item.file); mimeType = item.file.type;
         }
@@ -4090,7 +4159,7 @@ function compressImageFile(file, maxDim = 1200, quality = 0.82) {
       const img = new Image();
       img.onerror = () => {
         // fallback: just return raw base64 if image can't be drawn
-        fileToBase64(file).then(resolve).catch(reject);
+        fileToBase64(file).then(b64 => resolve({ base64: b64, transparent: false })).catch(reject);
       };
       img.onload = () => {
         let w = img.width, h = img.height;
@@ -4101,9 +4170,30 @@ function compressImageFile(file, maxDim = 1200, quality = 0.82) {
         const canvas = document.createElement('canvas');
         canvas.width = w; canvas.height = h;
         const ctx = canvas.getContext('2d');
+
+        // Detect alpha transparency BEFORE flattening. JPEG has no alpha
+        // channel — without this check, every transparent pixel turns
+        // solid BLACK in the image the AI actually sees (canvas default
+        // backing is transparent-black), causing the AI to wrongly
+        // describe a real transparent PNG as having a "black background".
+        let transparent = false;
         ctx.drawImage(img, 0, 0, w, h);
+        try {
+          const sample = ctx.getImageData(0, 0, w, h).data;
+          for (let i = 3; i < sample.length; i += 4) {
+            if (sample[i] < 255) { transparent = true; break; }
+          }
+        } catch (err) { /* getImageData can fail on tainted canvas — ignore */ }
+
+        // Flatten onto WHITE instead of the canvas's default
+        // transparent-black, so the AI sees a neutral background.
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        resolve(dataUrl.split(',')[1]);
+        resolve({ base64: dataUrl.split(',')[1], transparent });
       };
       img.src = e.target.result;
     };
@@ -4337,8 +4427,12 @@ async function startPromptGeneration() {
     const batch = promptFiles.slice(i, i + CHUNK);
     await Promise.all(batch.map(async (f) => {
       try {
-        const base64 = await compressImageFile(f, 1200, 0.85);
-        const aiResponse = await callAI(provider, apiKey, base64, 'image/jpeg', instruction, null);
+        const compressed = await compressImageFile(f, 1200, 0.85);
+        const base64 = compressed.base64;
+        const finalInstruction = compressed.transparent
+          ? `${instruction}\n\n[IMPORTANT: This source file has a TRANSPARENT background (alpha channel) — the preview is flattened on white only because JPEG cannot carry transparency. Describe/recreate it with a transparent or isolated background, NOT black or white, unless the target tool requires a solid background.]`
+          : instruction;
+        const aiResponse = await callAI(provider, apiKey, base64, 'image/jpeg', finalInstruction, null);
         const previewSrc = `data:image/jpeg;base64,${base64}`;
         const result = {
           file: f,
