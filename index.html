@@ -2317,8 +2317,7 @@ async function startGeneration() {
     fileMetaMap = {};
     renderPreviews();
     document.getElementById('fileCount').textContent = '0';
-    showToast(`✦ সব ${results.length}টি সফল! CSV ডাউনলোড হচ্ছে…`);
-    setTimeout(() => { exportCSV(); }, 600);
+    showToast(`✦ সব ${results.length}টি সফল!`);
   }
 }
 
@@ -2398,8 +2397,7 @@ async function autoRetryUntilDone() {
     fileMetaMap = {};
     renderPreviews();
     document.getElementById('fileCount').textContent = '0';
-    showToast(`✅ সব সফল! CSV ডাউনলোড হচ্ছে…`);
-    setTimeout(() => { exportCSV(); }, 600);
+    showToast(`✅ সব সফল!`);
   } else {
     document.getElementById('failedCount').textContent = finalFailed.length;
     showToast(`⚠ ${finalFailed.length}টি এখনো failed — manual retry করুন`);
@@ -3559,6 +3557,125 @@ function isAutoRenameOn() {
 }
 
 // ===== AI AUTO RENAME + ZIP =====
+// ── Metadata embed helpers ────────────────────────────────────────
+
+function buildXMP(md, filename) {
+  const title   = (md.title||'').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
+  const desc    = (md.description||'').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
+  const kws     = (md.keywords||[]).map(k => `<rdf:li>${k.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</rdf:li>`).join('');
+  const cat     = (md.category||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+  return `<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+    <rdf:Description rdf:about=""
+      xmlns:dc="http://purl.org/dc/elements/1.1/"
+      xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/"
+      xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/">
+      <dc:title><rdf:Alt><rdf:li xml:lang="x-default">${title}</rdf:li></rdf:Alt></dc:title>
+      <dc:description><rdf:Alt><rdf:li xml:lang="x-default">${desc}</rdf:li></rdf:Alt></dc:description>
+      <dc:subject><rdf:Bag>${kws}</rdf:Bag></dc:subject>
+      <photoshop:Category>${cat}</photoshop:Category>
+      <Iptc4xmpCore:IntellectualGenre>${filename}</Iptc4xmpCore:IntellectualGenre>
+    </rdf:Description>
+  </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`;
+}
+
+function embedJpegXMP(arrayBuf, xmpStr) {
+  // Insert XMP packet after JPEG SOI marker (FF D8)
+  const xmpMarker = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
+  const xmpData   = new TextEncoder().encode(xmpStr);
+  const app1Len   = 2 + xmpMarker.length + xmpData.length;
+  const app1      = new Uint8Array(4 + xmpMarker.length + xmpData.length);
+  app1[0] = 0xFF; app1[1] = 0xE1;                    // APP1 marker
+  app1[2] = (app1Len >> 8) & 0xFF; app1[3] = app1Len & 0xFF;
+  app1.set(xmpMarker, 4);
+  app1.set(xmpData, 4 + xmpMarker.length);
+
+  const src = new Uint8Array(arrayBuf);
+  const out  = new Uint8Array(2 + app1.length + src.length - 2);
+  out.set(src.slice(0, 2));         // FF D8
+  out.set(app1, 2);                  // XMP APP1
+  out.set(src.slice(2), 2 + app1.length); // rest of JPEG
+  return out.buffer;
+}
+
+function embedPngXMP(arrayBuf, xmpStr) {
+  // Add iTXt chunk with XML:com.adobe.xmp keyword before IEND
+  const src  = new Uint8Array(arrayBuf);
+  const enc  = new TextEncoder();
+  const keyword  = enc.encode('XML:com.adobe.xmp\0\0\0\0\0'); // keyword + separators
+  const data     = enc.encode(xmpStr);
+  const chunkData = new Uint8Array(keyword.length + data.length);
+  chunkData.set(keyword); chunkData.set(data, keyword.length);
+
+  const type = enc.encode('iTXt');
+  const len  = chunkData.length;
+  const lenBytes = new Uint8Array([(len>>24)&0xFF,(len>>16)&0xFF,(len>>8)&0xFF,len&0xFF]);
+
+  // CRC32 of type + data
+  const crcInput = new Uint8Array(type.length + chunkData.length);
+  crcInput.set(type); crcInput.set(chunkData, type.length);
+  const crc = crc32(crcInput);
+  const crcBytes = new Uint8Array([(crc>>24)&0xFF,(crc>>16)&0xFF,(crc>>8)&0xFF,crc&0xFF]);
+
+  // Find IEND position (last 12 bytes)
+  const iendPos = src.length - 12;
+  const out = new Uint8Array(src.length + 12 + chunkData.length);
+  out.set(src.slice(0, iendPos));
+  let p = iendPos;
+  out.set(lenBytes, p); p+=4;
+  out.set(type, p);     p+=4;
+  out.set(chunkData, p); p+=chunkData.length;
+  out.set(crcBytes, p); p+=4;
+  out.set(src.slice(iendPos)); // IEND
+  return out.buffer;
+}
+
+function embedSvgXMP(arrayBuf, xmpStr) {
+  const txt = new TextDecoder().decode(arrayBuf);
+  const comment = `\n<!-- ${xmpStr.replace(/--/g,'- -')} -->\n`;
+  const injected = txt.replace(/<svg/, comment + '<svg');
+  return new TextEncoder().encode(injected).buffer;
+}
+
+function embedTextXMP(arrayBuf, xmpStr, ext) {
+  // For EPS/AI: inject as PostScript comment at top
+  const txt = new TextDecoder('utf-8', {fatal:false}).decode(arrayBuf);
+  const comment = `%XMP_START\n${xmpStr}\n%XMP_END\n`;
+  return new TextEncoder().encode(comment + txt).buffer;
+}
+
+function crc32(data) {
+  let c = 0xFFFFFFFF;
+  const table = crc32.table || (crc32.table = (() => {
+    const t = new Uint32Array(256);
+    for (let i=0;i<256;i++){let v=i;for(let j=0;j<8;j++)v=v&1?(0xEDB88320^(v>>>1)):(v>>>1);t[i]=v;}
+    return t;
+  })());
+  for (let i=0;i<data.length;i++) c=table[(c^data[i])&0xFF]^(c>>>8);
+  return (c^0xFFFFFFFF)>>>0;
+}
+
+async function embedMetadata(arrayBuf, mimeType, ext, md, filename) {
+  try {
+    const xmp = buildXMP(md, filename);
+    const e = ext.toLowerCase().replace('.','');
+    if (e === 'jpg' || e === 'jpeg' || mimeType === 'image/jpeg') return embedJpegXMP(arrayBuf, xmp);
+    if (e === 'png'  || mimeType === 'image/png')  return embedPngXMP(arrayBuf, xmp);
+    if (e === 'svg'  || mimeType === 'image/svg+xml') return embedSvgXMP(arrayBuf, xmp);
+    if (e === 'eps' || e === 'ai') return embedTextXMP(arrayBuf, xmp, e);
+    // PDF, GIF, WebP, others — return as-is (XMP sidecar handled separately)
+    return arrayBuf;
+  } catch(err) {
+    console.warn('Metadata embed failed for', filename, err);
+    return arrayBuf;
+  }
+}
+
+// ── Main rename + zip function ────────────────────────────────────
+
 async function downloadRenameZip() {
   if (results.length === 0) { showToast('⚠️ কোনো result নেই'); return; }
   const provider = document.getElementById('aiProvider').value;
@@ -3576,17 +3693,16 @@ async function downloadRenameZip() {
 
     const zip = new JSZip();
     const imgFolder = zip.folder('renamed-images');
-    const renameMap = []; // {original, renamed, ext}
+    const renameMap = [];
     const usedNames = new Set();
 
     for (let i = 0; i < results.length; i++) {
       const item = results[i];
-      const md = item.metadata;
-      btn.textContent = `⏳ Renaming ${i+1}/${results.length}…`;
+      const md   = item.metadata;
+      btn.textContent = `⏳ ${i+1}/${results.length} processing…`;
 
+      // ── 1. Build SEO filename from title ──
       let seoName = '';
-
-      // Build SEO name from existing metadata first (title-based)
       if (md && md.title && !md.error) {
         seoName = md.title
           .toLowerCase()
@@ -3597,123 +3713,102 @@ async function downloadRenameZip() {
           .slice(0, 80);
       }
 
-      // If no good title, ask AI for SEO filename
+      // ── 2. Fallback: ask AI ──
       if (!seoName || seoName.length < 5) {
         try {
           const renamePrompt = `You are an SEO expert for Adobe Stock, Shutterstock, and Freepik.
 Look at this image and generate a PERFECT SEO-optimized file name.
-
-Rules:
-- 4 to 8 words only
-- All lowercase
-- Words separated by hyphens (-)
-- No spaces, no special characters, no numbers at start
-- Describe the main subject + style + use case
-- Optimize for stock marketplace search ranking
-- Example: tropical-fruit-coloring-page-line-art or school-supplies-black-white-vector-illustration
-
+Rules: 4-8 words, all lowercase, hyphens between words, no special chars, no numbers at start.
+Describe: main subject + style + use case. Optimize for stock marketplace search.
+Example: tropical-fruit-coloring-page-line-art
 Return ONLY the filename (no extension, no explanation, no quotes).`;
-
           let aiName = '';
           if (provider === 'gemini') {
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
               method: 'POST', headers: {'Content-Type':'application/json'},
               body: JSON.stringify({ contents: [{ parts: [
-                ...(item.base64 ? [{ inline_data: { mime_type: item.mimeType || 'image/jpeg', data: item.base64 } }] : []),
+                ...(item.base64 ? [{ inline_data: { mime_type: item.mimeType||'image/jpeg', data: item.base64 } }] : []),
                 { text: renamePrompt }
               ]}]})
             });
             const data = await res.json();
             aiName = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
           } else {
-            // OpenAI / OpenRouter
             const msgs = [{ role: 'user', content: [
               ...(item.base64 ? [{ type: 'image_url', image_url: { url: `data:${item.mimeType||'image/jpeg'};base64,${item.base64}` } }] : []),
               { type: 'text', text: renamePrompt }
             ]}];
             const endpoint = provider === 'openai' ? 'https://api.openai.com/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
-            const model = provider === 'openai' ? 'gpt-4o-mini' : 'google/gemini-2.0-flash-001';
             const res = await fetch(endpoint, {
-              method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${apiKey}` },
-              body: JSON.stringify({ model, messages: msgs, max_tokens: 50 })
+              method: 'POST', headers: {'Content-Type':'application/json','Authorization':`Bearer ${apiKey}`},
+              body: JSON.stringify({ model: provider === 'openai' ? 'gpt-4o-mini' : 'google/gemini-2.0-flash-001', messages: msgs, max_tokens: 50 })
             });
             const data = await res.json();
             aiName = data?.choices?.[0]?.message?.content?.trim() || '';
           }
-          seoName = aiName.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
-        } catch(e) { console.warn('AI rename failed for', item.file.name, e); }
+          seoName = aiName.toLowerCase().replace(/[^a-z0-9-]/g,'-').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,80);
+        } catch(e) { console.warn('AI rename failed', e); }
       }
 
-      // Fallback: use original name cleaned up
+      // ── 3. Fallback: clean original name ──
       if (!seoName || seoName.length < 3) {
-        seoName = item.file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').slice(0, 60);
+        seoName = item.file.name.replace(/\.[^.]+$/,'').toLowerCase().replace(/[^a-z0-9-]/g,'-').replace(/-+/g,'-').slice(0,60);
       }
 
-      // Ensure unique name
+      // ── 4. Unique name ──
       const ext = '.' + item.file.name.split('.').pop().toLowerCase();
       let finalName = seoName + ext;
       let counter = 2;
       while (usedNames.has(finalName)) { finalName = seoName + '-' + counter + ext; counter++; }
       usedNames.add(finalName);
-
       renameMap.push({ original: item.file.name, renamed: finalName, idx: i });
-      results[i].seoFilename = finalName; // Save for CSV
+      results[i].seoFilename = finalName;
 
-      // Embed metadata into image comment (for JPEG/PNG via text chunk in ZIP)
-      // We store as a sidecar .txt file alongside the image
-      const metaTxt = [
-        `File: ${finalName}`,
-        `Original: ${item.file.name}`,
-        `Title: ${md.title || ''}`,
-        `Description: ${md.description || ''}`,
-        `Keywords: ${(md.keywords || []).join(', ')}`,
-        `Category: ${md.category || ''} (#${md.category_number || ''})`,
-        `Rating: ${item.rating ? item.rating + '/5' : 'Not rated'}`,
-        `Generated: ${new Date().toISOString()}`,
-      ].join('\n');
-
-      // Add image file with SEO name
+      // ── 5. Embed metadata into file ──
       try {
-        const arrayBuf = await item.file.arrayBuffer();
+        let arrayBuf = await item.file.arrayBuffer();
+        if (md && !md.error) {
+          arrayBuf = await embedMetadata(arrayBuf, item.mimeType, ext, md, finalName);
+        }
         imgFolder.file(finalName, arrayBuf);
-        imgFolder.file(finalName.replace(ext, '.txt'), metaTxt);
-      } catch(e) { console.warn('Could not add file', e); }
+
+        // XMP sidecar for formats we can't embed (PDF, GIF, WebP etc.)
+        const e = ext.toLowerCase().replace('.','');
+        const canEmbed = ['jpg','jpeg','png','svg','eps','ai'].includes(e);
+        if (!canEmbed && md && !md.error) {
+          imgFolder.file(finalName + '.xmp', buildXMP(md, finalName));
+        }
+      } catch(e) { console.warn('File add failed', e); }
     }
 
     btn.textContent = '⏳ Building ZIP…';
 
-    // Build rename report CSV
-    const renameCSV = '\uFEFF' + 'Original Name,SEO Renamed,Rating\r\n' +
-      renameMap.map(r => {
-        const rating = results[r.idx]?.rating || '';
-        return `"${r.original}","${r.renamed}","${rating ? rating+'/5' : ''}"`;
-      }).join('\r\n');
+    // ── 6. Rename report CSV (no rating column) ──
+    const renameCSV = '\uFEFF' + 'Original Name,SEO Renamed\r\n' +
+      renameMap.map(r => `"${r.original}","${r.renamed}"`).join('\r\n');
     zip.file('rename-report.csv', renameCSV);
 
-    // Also include full metadata CSV with SEO filenames
+    // ── 7. Metadata CSV with SEO filenames (no rating) ──
     const csvRows = results.filter(r => r.metadata && !r.metadata.error).map(r => {
       const fn = r.seoFilename || r.file.name;
       const md = r.metadata;
       return [csvQ(fn), csvQ(md.title||''), csvQ(md.description||''), csvQ((md.keywords||[]).join(', ')), csvQ(md.category||''), csvQ(String(md.category_number||''))].join(',');
     });
-    const fullCSV = '\uFEFF' + 'Filename,Title,Description,Keywords,Category,Category Number\r\n' + csvRows.join('\r\n');
-    zip.file('metadata.csv', fullCSV);
+    zip.file('metadata.csv', '\uFEFF' + 'Filename,Title,Description,Keywords,Category,Category Number\r\n' + csvRows.join('\r\n'));
 
-    // Generate ZIP
-    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } },
+    // ── 8. Generate & download ──
+    const blob = await zip.generateAsync({ type:'blob', compression:'DEFLATE', compressionOptions:{level:6} },
       meta => { btn.textContent = `⏳ ${Math.round(meta.percent)}%`; });
-
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = 'robi-graphics-renamed.zip';
     document.body.appendChild(a); a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showToast(`✅ ${results.length}টি ফাইল SEO rename হয়ে ZIP হয়েছে!`);
+    showToast(`✅ ${results.length}টি ফাইল SEO rename + metadata embed হয়ে ZIP হয়েছে!`);
 
   } catch(e) {
-    showToast('❌ Error: ' + e.message);
-    console.error(e);
+    showToast('❌ Error: ' + e.message); console.error(e);
   } finally {
     btn.disabled = false; btn.textContent = '✏️ AI Rename + ZIP';
   }
@@ -3852,8 +3947,7 @@ async function retryFailed() {
     fileMetaMap = {};
     renderPreviews();
     document.getElementById('fileCount').textContent = '0';
-    showToast(`✅ সব ${retried}টি সফল! CSV ডাউনলোড হচ্ছে…`);
-    setTimeout(() => { exportCSV(); }, 600);
+    showToast(`✅ সব ${retried}টি সফল!`);
   } else {
     document.getElementById('failedCount').textContent = stillFailed.length;
     const stillFailedNames = new Set(stillFailed.map(r => r.file.name + r.file.size));
