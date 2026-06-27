@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ℛØℬᎥ Graphics – AI Metadata Generator</title>
+<title>ℛØℬᎥ Graphics – AI Metadata Generator v22</title>
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -3522,7 +3522,14 @@ async function downloadZip() {
     for (const item of results) {
       const f = item.file;
       try {
-        const arrayBuf = await f.arrayBuffer();
+        let arrayBuf = await f.arrayBuffer();
+        const md = item.metadata;
+        if (md && !md.error) {
+          const ext = f.name.split('.').pop().toLowerCase();
+          arrayBuf = await embedMetadata(arrayBuf, item.mimeType, ext, md, 5);
+          const canEmbed = ['jpg','jpeg','png','svg','eps','ai'].includes(ext);
+          if (!canEmbed) imgFolder.file(f.name + '.xmp', buildXMP(md, 5));
+        }
         imgFolder.file(f.name, arrayBuf);
       } catch(e) { console.warn('Could not add', f.name, e); }
     }
@@ -3557,119 +3564,224 @@ function isAutoRenameOn() {
 }
 
 // ===== AI AUTO RENAME + ZIP =====
-// ── Metadata embed helpers ────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+// METADATA EMBED SYSTEM — EXIF + IPTC + XMP
+// Windows File Properties-এ Title, Subject, Rating, Tags, Comments দেখাবে
+// Resolution/quality কমবে না — binary copy, শুধু header inject
+// ══════════════════════════════════════════════════════════════
 
-function buildXMP(md, filename) {
-  const title   = (md.title||'').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
-  const desc    = (md.description||'').replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
-  const kws     = (md.keywords||[]).map(k => `<rdf:li>${k.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</rdf:li>`).join('');
-  const cat     = (md.category||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+function xe(s) { // XML escape
+  return String(s||'').replace(/[<>&"']/g, c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&apos;'}[c]));
+}
+
+function buildXMP(md, rating) {
+  const kws = (md.keywords||[]).map(k=>`<rdf:li>${xe(k)}</rdf:li>`).join('');
+  const stars = rating ? Math.min(5, Math.max(1, rating)) : 0;
+  // xmp:Rating: 0=unrated,1=1star...5=5star; MicrosoftPhoto maps: 1=1,25=2,50=3,75=4,99=5
+  const msRating = [0,1,25,50,75,99][stars] || 0;
   return `<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
-  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-    <rdf:Description rdf:about=""
-      xmlns:dc="http://purl.org/dc/elements/1.1/"
-      xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/"
-      xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/">
-      <dc:title><rdf:Alt><rdf:li xml:lang="x-default">${title}</rdf:li></rdf:Alt></dc:title>
-      <dc:description><rdf:Alt><rdf:li xml:lang="x-default">${desc}</rdf:li></rdf:Alt></dc:description>
-      <dc:subject><rdf:Bag>${kws}</rdf:Bag></dc:subject>
-      <photoshop:Category>${cat}</photoshop:Category>
-      <Iptc4xmpCore:IntellectualGenre>${filename}</Iptc4xmpCore:IntellectualGenre>
-    </rdf:Description>
-  </rdf:RDF>
+<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="ROBI Graphics">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about=""
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+   xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/"
+   xmlns:MicrosoftPhoto="http://ns.microsoft.com/photo/1.0/"
+   xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/">
+   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">${xe(md.title)}</rdf:li></rdf:Alt></dc:title>
+   <dc:description><rdf:Alt><rdf:li xml:lang="x-default">${xe(md.description)}</rdf:li></rdf:Alt></dc:description>
+   <dc:subject><rdf:Bag>${kws}</rdf:Bag></dc:subject>
+   <xmp:Rating>${stars}</xmp:Rating>
+   <MicrosoftPhoto:Rating>${msRating}</MicrosoftPhoto:Rating>
+   <photoshop:Headline>${xe(md.title)}</photoshop:Headline>
+   <photoshop:Category>${xe(md.category)}</photoshop:Category>
+   <Iptc4xmpCore:SubjectCode>${xe(md.category)}</Iptc4xmpCore:SubjectCode>
+  </rdf:Description>
+ </rdf:RDF>
 </x:xmpmeta>
 <?xpacket end="w"?>`;
 }
 
-function embedJpegXMP(arrayBuf, xmpStr) {
-  // Insert XMP packet after JPEG SOI marker (FF D8)
-  const xmpMarker = new TextEncoder().encode('http://ns.adobe.com/xap/1.0/\0');
-  const xmpData   = new TextEncoder().encode(xmpStr);
-  const app1Len   = 2 + xmpMarker.length + xmpData.length;
-  const app1      = new Uint8Array(4 + xmpMarker.length + xmpData.length);
-  app1[0] = 0xFF; app1[1] = 0xE1;                    // APP1 marker
-  app1[2] = (app1Len >> 8) & 0xFF; app1[3] = app1Len & 0xFF;
-  app1.set(xmpMarker, 4);
-  app1.set(xmpData, 4 + xmpMarker.length);
+// ── IPTC block builder (for Windows "Tags" + "Subject" + "Comments") ──
+function buildIPTC(md) {
+  const enc = new TextEncoder();
+  const records = [];
 
-  const src = new Uint8Array(arrayBuf);
-  const out  = new Uint8Array(2 + app1.length + src.length - 2);
-  out.set(src.slice(0, 2));         // FF D8
-  out.set(app1, 2);                  // XMP APP1
-  out.set(src.slice(2), 2 + app1.length); // rest of JPEG
-  return out.buffer;
+  function addRecord(tag, value) {
+    const valBytes = enc.encode(String(value||'').slice(0, 2000));
+    const rec = new Uint8Array(5 + valBytes.length);
+    rec[0] = 0x1C; rec[1] = 0x02; rec[2] = tag;
+    rec[3] = (valBytes.length >> 8) & 0xFF;
+    rec[4] = valBytes.length & 0xFF;
+    rec.set(valBytes, 5);
+    records.push(rec);
+  }
+
+  addRecord(0x78, md.title);          // 120 = ObjectName → Title
+  addRecord(0x69, md.description);    // 105 = Caption/Abstract → Subject/Comments
+  addRecord(0x50, md.description);    // 80  = Headline
+  addRecord(0x19, md.category);       // 25  = Category
+  (md.keywords||[]).slice(0,64).forEach(k => addRecord(0x19, k) && addRecord(0x1A, k)); // Keywords tag 26
+  (md.keywords||[]).slice(0,64).forEach(k => addRecord(0x1A, k)); // 26 = Keywords
+
+  const totalLen = records.reduce((a,r) => a + r.length, 0);
+  const buf = new Uint8Array(totalLen);
+  let off = 0;
+  records.forEach(r => { buf.set(r, off); off += r.length; });
+  return buf;
 }
 
-function embedPngXMP(arrayBuf, xmpStr) {
-  // Add iTXt chunk with XML:com.adobe.xmp keyword before IEND
-  const src  = new Uint8Array(arrayBuf);
-  const enc  = new TextEncoder();
-  const keyword  = enc.encode('XML:com.adobe.xmp\0\0\0\0\0'); // keyword + separators
-  const data     = enc.encode(xmpStr);
-  const chunkData = new Uint8Array(keyword.length + data.length);
-  chunkData.set(keyword); chunkData.set(data, keyword.length);
-
-  const type = enc.encode('iTXt');
-  const len  = chunkData.length;
-  const lenBytes = new Uint8Array([(len>>24)&0xFF,(len>>16)&0xFF,(len>>8)&0xFF,len&0xFF]);
-
-  // CRC32 of type + data
-  const crcInput = new Uint8Array(type.length + chunkData.length);
-  crcInput.set(type); crcInput.set(chunkData, type.length);
-  const crc = crc32(crcInput);
-  const crcBytes = new Uint8Array([(crc>>24)&0xFF,(crc>>16)&0xFF,(crc>>8)&0xFF,crc&0xFF]);
-
-  // Find IEND position (last 12 bytes)
-  const iendPos = src.length - 12;
-  const out = new Uint8Array(src.length + 12 + chunkData.length);
-  out.set(src.slice(0, iendPos));
-  let p = iendPos;
-  out.set(lenBytes, p); p+=4;
-  out.set(type, p);     p+=4;
-  out.set(chunkData, p); p+=chunkData.length;
-  out.set(crcBytes, p); p+=4;
-  out.set(src.slice(iendPos)); // IEND
-  return out.buffer;
-}
-
-function embedSvgXMP(arrayBuf, xmpStr) {
-  const txt = new TextDecoder().decode(arrayBuf);
-  const comment = `\n<!-- ${xmpStr.replace(/--/g,'- -')} -->\n`;
-  const injected = txt.replace(/<svg/, comment + '<svg');
-  return new TextEncoder().encode(injected).buffer;
-}
-
-function embedTextXMP(arrayBuf, xmpStr, ext) {
-  // For EPS/AI: inject as PostScript comment at top
-  const txt = new TextDecoder('utf-8', {fatal:false}).decode(arrayBuf);
-  const comment = `%XMP_START\n${xmpStr}\n%XMP_END\n`;
-  return new TextEncoder().encode(comment + txt).buffer;
-}
-
+// ── CRC32 (for PNG) ──
 function crc32(data) {
-  let c = 0xFFFFFFFF;
-  const table = crc32.table || (crc32.table = (() => {
-    const t = new Uint32Array(256);
-    for (let i=0;i<256;i++){let v=i;for(let j=0;j<8;j++)v=v&1?(0xEDB88320^(v>>>1)):(v>>>1);t[i]=v;}
-    return t;
-  })());
-  for (let i=0;i<data.length;i++) c=table[(c^data[i])&0xFF]^(c>>>8);
+  if (!crc32._t) {
+    crc32._t = new Uint32Array(256);
+    for (let i=0;i<256;i++){let v=i;for(let j=0;j<8;j++)v=v&1?(0xEDB88320^(v>>>1)):(v>>>1);crc32._t[i]=v;}
+  }
+  let c=0xFFFFFFFF;
+  for (let i=0;i<data.length;i++) c=crc32._t[(c^data[i])&0xFF]^(c>>>8);
   return (c^0xFFFFFFFF)>>>0;
 }
 
-async function embedMetadata(arrayBuf, mimeType, ext, md, filename) {
+// ── JPEG embed: XMP APP1 + IPTC APP13 injected after SOI, original bytes untouched ──
+function embedJpegFull(arrayBuf, md, rating) {
+  const src = new Uint8Array(arrayBuf);
+  const enc = new TextEncoder();
+
+  // 1. Build XMP APP1 segment
+  const xmpStr  = buildXMP(md, rating);
+  const xmpNS   = enc.encode('http://ns.adobe.com/xap/1.0/\0');
+  const xmpData = enc.encode(xmpStr);
+  const xmpLen  = 2 + xmpNS.length + xmpData.length;
+  const xmpSeg  = new Uint8Array(4 + xmpNS.length + xmpData.length);
+  xmpSeg[0]=0xFF; xmpSeg[1]=0xE1;
+  xmpSeg[2]=(xmpLen>>8)&0xFF; xmpSeg[3]=xmpLen&0xFF;
+  xmpSeg.set(xmpNS, 4); xmpSeg.set(xmpData, 4+xmpNS.length);
+
+  // 2. Build IPTC APP13 segment (Photoshop 3.0 wrapper)
+  const iptcData   = buildIPTC(md);
+  const ps3Header  = enc.encode('Photoshop 3.0\0');
+  const bimHeader  = new Uint8Array([0x38,0x42,0x49,0x4D,0x04,0x04,0x00,0x00,0x00,0x00]);
+  const iptcLenB   = new Uint8Array([(iptcData.length>>24)&0xFF,(iptcData.length>>16)&0xFF,(iptcData.length>>8)&0xFF,iptcData.length&0xFF]);
+  const app13Body  = new Uint8Array(ps3Header.length + bimHeader.length + 4 + iptcData.length);
+  let p=0;
+  app13Body.set(ps3Header,p); p+=ps3Header.length;
+  app13Body.set(bimHeader,p); p+=bimHeader.length;
+  app13Body.set(iptcLenB,p);  p+=4;
+  app13Body.set(iptcData,p);
+  const app13Len = 2 + app13Body.length;
+  const app13Seg = new Uint8Array(4 + app13Body.length);
+  app13Seg[0]=0xFF; app13Seg[1]=0xED;
+  app13Seg[2]=(app13Len>>8)&0xFF; app13Seg[3]=app13Len&0xFF;
+  app13Seg.set(app13Body, 4);
+
+  // 3. Assemble: SOI + XMP + IPTC + rest of original JPEG (skip any existing APP1/APP13)
+  // Find where to insert (after SOI FF D8, skip existing APP0/APP1 if present)
+  let insertAt = 2;
+  // Skip existing APP0 (JFIF) if present
+  if (src[2]===0xFF && src[3]===0xE0) {
+    const segLen = (src[4]<<8)|src[5];
+    insertAt = 2 + 2 + segLen;
+  }
+
+  const out = new Uint8Array(src.length + xmpSeg.length + app13Seg.length);
+  out.set(src.slice(0, insertAt));
+  out.set(xmpSeg,   insertAt);
+  out.set(app13Seg, insertAt + xmpSeg.length);
+  out.set(src.slice(insertAt), insertAt + xmpSeg.length + app13Seg.length);
+  return out.buffer;
+}
+
+// ── PNG embed: iTXt chunks for Title, Description, Keywords + XMP ──
+function embedPngFull(arrayBuf, md, rating) {
+  const src = new Uint8Array(arrayBuf);
+  const enc = new TextEncoder();
+
+  function makeChunk(type, data) {
+    const t = enc.encode(type);
+    const len = data.length;
+    const lenB = new Uint8Array([(len>>24)&0xFF,(len>>16)&0xFF,(len>>8)&0xFF,len&0xFF]);
+    const crcIn = new Uint8Array(t.length+data.length);
+    crcIn.set(t); crcIn.set(data,t.length);
+    const crcV = crc32(crcIn);
+    const crcB = new Uint8Array([(crcV>>24)&0xFF,(crcV>>16)&0xFF,(crcV>>8)&0xFF,crcV&0xFF]);
+    const chunk = new Uint8Array(4+4+data.length+4);
+    chunk.set(lenB); chunk.set(t,4); chunk.set(data,8); chunk.set(crcB,8+data.length);
+    return chunk;
+  }
+
+  function iTXt(keyword, text) {
+    // iTXt: keyword \0 compression_flag \0 compression_method \0 language \0 translated_keyword \0 text
+    const kw = enc.encode(keyword);
+    const tx = enc.encode(text);
+    const d  = new Uint8Array(kw.length+5+tx.length);
+    d.set(kw); d[kw.length]=0; d[kw.length+1]=0; d[kw.length+2]=0;
+    d[kw.length+3]=0; d[kw.length+4]=0;
+    d.set(tx, kw.length+5);
+    return makeChunk('iTXt', d);
+  }
+
+  const chunks = [
+    iTXt('Title',       md.title||''),
+    iTXt('Description', md.description||''),
+    iTXt('Comment',     md.description||''),
+    iTXt('Keywords',    (md.keywords||[]).join('; ')),
+    iTXt('Category',    md.category||''),
+    iTXt('Rating',      String(rating||0)),
+    iTXt('XML:com.adobe.xmp', buildXMP(md, rating)),
+  ];
+  const totalExtra = chunks.reduce((a,c)=>a+c.length,0);
+
+  // Insert before IEND (last 12 bytes)
+  const iendPos = src.length - 12;
+  const out = new Uint8Array(src.length + totalExtra);
+  out.set(src.slice(0, iendPos));
+  let off = iendPos;
+  chunks.forEach(c => { out.set(c, off); off+=c.length; });
+  out.set(src.slice(iendPos));
+  return out.buffer;
+}
+
+// ── SVG: inject XMP + metadata as XML comments ──
+function embedSvgFull(arrayBuf, md, rating) {
+  const txt = new TextDecoder().decode(arrayBuf);
+  const block = `\n<!-- METADATA
+Title: ${(md.title||'').replace(/--/g,'- -')}
+Description: ${(md.description||'').replace(/--/g,'- -')}
+Keywords: ${(md.keywords||[]).join(', ').replace(/--/g,'- -')}
+Category: ${(md.category||'').replace(/--/g,'- -')}
+Rating: ${rating||0}/5
+-->\n${buildXMP(md,rating).replace(/--/g,'- -').split('\n').map(l=>`<!-- ${l} -->`).join('\n')}\n`;
+  return new TextEncoder().encode(txt.replace(/<svg/, block+'<svg')).buffer;
+}
+
+// ── EPS/AI: inject metadata as PostScript DSC comments ──
+function embedEpsFull(arrayBuf, md, rating) {
+  const txt = new TextDecoder('utf-8',{fatal:false}).decode(arrayBuf);
+  const header = [
+    `%%Title: ${md.title||''}`,
+    `%%Keywords: ${(md.keywords||[]).join(', ')}`,
+    `%%Description: ${md.description||''}`,
+    `%%Category: ${md.category||''}`,
+    `%%Rating: ${rating||0}/5`,
+    `%XMP_START`,
+    buildXMP(md, rating),
+    `%XMP_END`,
+    ''
+  ].join('\n');
+  return new TextEncoder().encode(header + txt).buffer;
+}
+
+// ── Router ──
+async function embedMetadata(arrayBuf, mimeType, ext, md, rating) {
   try {
-    const xmp = buildXMP(md, filename);
     const e = ext.toLowerCase().replace('.','');
-    if (e === 'jpg' || e === 'jpeg' || mimeType === 'image/jpeg') return embedJpegXMP(arrayBuf, xmp);
-    if (e === 'png'  || mimeType === 'image/png')  return embedPngXMP(arrayBuf, xmp);
-    if (e === 'svg'  || mimeType === 'image/svg+xml') return embedSvgXMP(arrayBuf, xmp);
-    if (e === 'eps' || e === 'ai') return embedTextXMP(arrayBuf, xmp, e);
-    // PDF, GIF, WebP, others — return as-is (XMP sidecar handled separately)
-    return arrayBuf;
+    if (e==='jpg'||e==='jpeg'||mimeType==='image/jpeg') return embedJpegFull(arrayBuf, md, rating);
+    if (e==='png' ||mimeType==='image/png')             return embedPngFull(arrayBuf, md, rating);
+    if (e==='svg' ||mimeType==='image/svg+xml')         return embedSvgFull(arrayBuf, md, rating);
+    if (e==='eps'||e==='ai')                            return embedEpsFull(arrayBuf, md, rating);
+    return arrayBuf; // PDF/GIF/WebP → sidecar XMP
   } catch(err) {
-    console.warn('Metadata embed failed for', filename, err);
+    console.warn('Metadata embed failed:', err);
     return arrayBuf;
   }
 }
@@ -3768,7 +3880,8 @@ Return ONLY the filename (no extension, no explanation, no quotes).`;
       try {
         let arrayBuf = await item.file.arrayBuffer();
         if (md && !md.error) {
-          arrayBuf = await embedMetadata(arrayBuf, item.mimeType, ext, md, finalName);
+          const starRating = 5; // 5-star rating for all exported files
+          arrayBuf = await embedMetadata(arrayBuf, item.mimeType, ext, md, starRating);
         }
         imgFolder.file(finalName, arrayBuf);
 
@@ -3776,7 +3889,8 @@ Return ONLY the filename (no extension, no explanation, no quotes).`;
         const e = ext.toLowerCase().replace('.','');
         const canEmbed = ['jpg','jpeg','png','svg','eps','ai'].includes(e);
         if (!canEmbed && md && !md.error) {
-          imgFolder.file(finalName + '.xmp', buildXMP(md, finalName));
+          const starRating = 5;
+          imgFolder.file(finalName + '.xmp', buildXMP(md, starRating));
         }
       } catch(e) { console.warn('File add failed', e); }
     }
