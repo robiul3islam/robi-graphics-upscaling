@@ -3526,8 +3526,8 @@ async function downloadZip() {
         const md = item.metadata;
         if (md && !md.error) {
           const ext = f.name.split('.').pop().toLowerCase();
-          arrayBuf = await embedMetadata(arrayBuf, item.mimeType, ext, md, 5);
-          const canEmbed = ['jpg','jpeg','png','svg','eps','ai'].includes(ext);
+          arrayBuf = await embedMetadata(arrayBuf, f.type, ext, md, 5);
+          const canEmbed = ['jpg','jpeg','png'].includes(ext);
           if (!canEmbed) imgFolder.file(f.name + '.xmp', buildXMP(md, 5));
         }
         imgFolder.file(f.name, arrayBuf);
@@ -3767,8 +3767,14 @@ function embedPngFull(arrayBuf, md, rating) {
 async function embedMetadata(arrayBuf, mimeType, ext, md, rating) {
   try {
     const e = String(ext).toLowerCase().replace('.','');
-    if (e==='jpg'||e==='jpeg'||mimeType==='image/jpeg') return embedJpegFull(arrayBuf, md, rating);
-    if (e==='png' ||mimeType==='image/png')             return embedPngFull(arrayBuf, md, rating);
+    // Trust the real file extension FIRST — mimeType here can be the
+    // AI-upload mimeType (always forced to image/jpeg for the vision call),
+    // which does NOT reflect the original file's real format.
+    if (e==='jpg'||e==='jpeg') return embedJpegFull(arrayBuf, md, rating);
+    if (e==='png')             return embedPngFull(arrayBuf, md, rating);
+    // Fallback to mimeType only if extension is missing/unknown
+    if (mimeType==='image/jpeg') return embedJpegFull(arrayBuf, md, rating);
+    if (mimeType==='image/png')  return embedPngFull(arrayBuf, md, rating);
     return arrayBuf;
   } catch(err) {
     console.warn('Metadata embed failed:', err);
@@ -3872,13 +3878,13 @@ Return ONLY the filename (no extension, no explanation, no quotes).`;
         let arrayBuf = await item.file.arrayBuffer();
         if (md && !md.error) {
           const starRating = 5; // 5-star rating for all exported files
-          arrayBuf = await embedMetadata(arrayBuf, item.mimeType, ext, md, starRating);
+          arrayBuf = await embedMetadata(arrayBuf, item.file.type, ext, md, starRating);
         }
         imgFolder.file(finalName, arrayBuf);
 
         // XMP sidecar for formats we can't embed (PDF, GIF, WebP etc.)
         const e = ext.toLowerCase().replace('.','');
-        const canEmbed = ['jpg','jpeg','png','svg','eps','ai'].includes(e);
+        const canEmbed = ['jpg','jpeg','png'].includes(e);
         if (!canEmbed && md && !md.error) {
           const starRating = 5;
           imgFolder.file(finalName + '.xmp', buildXMP(md, starRating));
