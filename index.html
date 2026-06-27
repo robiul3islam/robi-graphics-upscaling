@@ -368,6 +368,25 @@
   .result-field-text { font-size: 14px; font-weight: 600; color: var(--text); }
   .result-field-text.desc { font-size: 13px; font-weight: 400; color: #b0c4d8; line-height: 1.4; }
   .keywords-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
+
+  /* Keyword market weight bar */
+  .kw { position: relative; padding-right: 28px !important; overflow: hidden; }
+  .kw-bar {
+    position: absolute; left: 0; bottom: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 0 0 6px 6px; transition: width 0.3s;
+    pointer-events: none;
+  }
+  .kw-weight-pct {
+    font-size: 9px; opacity: 0.55; margin-left: 3px;
+    font-family: 'Space Mono', monospace; vertical-align: middle;
+  }
+
+  /* Star Rating */
+  .star-rating { display: flex; gap: 3px; margin-top: 6px; }
+  .star { font-size: 18px; cursor: pointer; color: var(--border); transition: color 0.15s; }
+  .star.active { color: #ffc107; }
+  .star:hover { color: #ffd54f; }
   .kw { padding: 3px 9px; border-radius: 4px; font-size: 11px; background: rgba(0,229,255,0.08); color: var(--accent); border: 1px solid rgba(0,229,255,0.15); font-family: 'Space Mono', monospace; }
   .kw.kw-dup { background: rgba(255,107,0,0.15); color: var(--accent2); border-color: rgba(255,107,0,0.3); }
   .kw.kw-banned { background: rgba(255,0,80,0.15); color: var(--red); border-color: rgba(255,0,80,0.3); }
@@ -734,6 +753,24 @@
       <div style="font-size:10px;color:var(--muted);margin-top:6px;font-family:'Space Mono',monospace;">CSV ফাইলে ছবির নামের extension পরিবর্তন হবে</div>
     </div>
 
+    <div class="sidebar-section">
+      <div style="background:rgba(255,107,0,0.08);border:1px solid rgba(255,107,0,0.28);border-radius:12px;padding:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:#ff6b00;letter-spacing:0.5px;">✏️ AI Auto Rename</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:2px;font-family:'Space Mono',monospace;">SEO friendly file name</div>
+          </div>
+          <div class="toggle" id="autoRenameToggle" onclick="toggleAutoRename(this)" title="ON করলে ZIP-এ SEO নাম হবে"></div>
+        </div>
+        <div id="autoRenameStatus" style="font-size:11px;color:var(--muted);line-height:1.5;display:none;">
+          ✅ <strong style="color:#ff6b00;">ON</strong> — ZIP করলে AI ছবি দেখে SEO নাম দেবে এবং metadata embed করবে
+        </div>
+        <div id="autoRenameOffMsg" style="font-size:11px;color:var(--muted);line-height:1.5;">
+          OFF — ZIP-এ original নাম থাকবে
+        </div>
+      </div>
+    </div>
+
     <button class="btn btn-generate" style="width:100%;justify-content:center;" onclick="saveSettings()">💾 Save Settings</button>
   </aside>
 
@@ -819,6 +856,7 @@
           <button class="btn btn-export" id="dlCsvBtn" onclick="exportCSV()" style="display:none;font-size:13px;padding:10px 16px;">📊 Download CSV</button>
           <button class="btn btn-export" id="dlAllPlatformsBtn" onclick="downloadAllPlatformsCSV()" style="display:none;font-size:13px;padding:10px 16px;background:rgba(168,85,247,0.12);color:#a855f7;border:1px solid rgba(168,85,247,0.3);">📚 All Platforms CSV</button>
           <button class="btn btn-export" id="dlPromptsBtn" onclick="downloadAllPrompts()" style="display:none;font-size:13px;padding:10px 16px;background:rgba(255,193,7,0.12);color:#ffc107;border:1px solid rgba(255,193,7,0.3);">🎨 Download Recreation Prompts</button>
+          <button class="btn btn-export" id="dlRenameZipBtn" onclick="downloadRenameZip()" style="display:none;font-size:13px;padding:10px 16px;background:rgba(255,107,0,0.12);color:#ff6b00;border:1px solid rgba(255,107,0,0.3);">✏️ AI Rename + ZIP</button>
           <button class="btn btn-dl-zip" id="dlZipBtn" onclick="downloadZip()" style="display:none;">📦 Download ZIP</button>
         </div>
       </div>
@@ -2076,6 +2114,7 @@ function clearAll() {
   document.getElementById('dlCsvBtn').style.display = 'none';
   document.getElementById('dlAllPlatformsBtn').style.display = 'none';
   document.getElementById('dlPromptsBtn').style.display = 'none';
+  document.getElementById('dlRenameZipBtn').style.display = 'none';
   document.getElementById('filterBar').style.display = 'none';
   document.getElementById('findReplaceBar').style.display = 'none';
   document.getElementById('bulkActionsBar').classList.remove('show');
@@ -2235,6 +2274,7 @@ async function startGeneration() {
         document.getElementById('dlCsvBtn').style.display = 'flex';
         document.getElementById('dlAllPlatformsBtn').style.display = 'flex';
         document.getElementById('dlPromptsBtn').style.display = 'flex';
+        document.getElementById('dlRenameZipBtn').style.display = 'flex';
         document.getElementById('filterBar').style.display = 'flex';
       }
       updateProgress(Math.round((completed / total) * 100), `Processing ${completed} of ${total}…`);
@@ -2894,14 +2934,24 @@ function renderResult(item, idx) {
   const bannedCount = kws.filter(isBannedKeyword).length;
 
   const totalKw = kws.length;
+  // Market weight: position 1 = 100%, last = ~20% (Adobe Stock weights by position)
   const kwHtml = kws.map((k, i) => {
     const norm = String(k).toLowerCase().trim();
     let cls = 'kw';
     if (isBannedKeyword(k)) cls += ' kw-banned';
     else if (dupSet.has(norm)) cls += ' kw-dup';
-    const pct = Math.round(((i + 1) / totalKw) * 100);
-    const title = isBannedKeyword(k) ? 'Banned/risky word — click to remove' : (dupSet.has(norm) ? 'Duplicate keyword — click to remove' : 'Click to remove from CSV');
-    return `<span class="${cls}" title="${title}" onclick="removeKeyword(${idx}, ${i})" style="cursor:pointer;"><span style="opacity:0.5;font-size:10px;margin-right:2px;">${pct}%</span>${k} <span style="opacity:0.4;font-size:10px;">✕</span></span>`;
+    // Market weight: exponential decay — first keywords carry most search weight
+    const weight = Math.round(100 * Math.pow(0.97, i));
+    const title = isBannedKeyword(k)
+      ? `Banned/risky — click to remove | Market weight: ${weight}%`
+      : dupSet.has(norm)
+        ? `Duplicate — click to remove | Market weight: ${weight}%`
+        : `Market weight: ${weight}% | Click to remove`;
+    return `<span class="${cls}" title="${title}" onclick="removeKeyword(${idx}, ${i})" style="cursor:pointer;">` +
+      `${k}<span class="kw-weight-pct">${weight}%</span>` +
+      `<span class="kw-bar" style="width:${weight}%"></span>` +
+      `<span style="opacity:0.35;font-size:10px;margin-left:2px;">✕</span>` +
+      `</span>`;
   }).join('');
 
   const card = document.createElement('div');
@@ -2942,6 +2992,10 @@ function renderResult(item, idx) {
         ${catNum ? `<span>Cat#: <strong>${catNum}</strong></span>` : ''}
         ${dupCount > 0 ? `<span>⚠ <strong class="warn">${dupCount} duplicate keyword(s)</strong></span>` : ''}
         ${bannedCount > 0 ? `<span>🚫 <strong class="err">${bannedCount} risky keyword(s)</strong></span>` : ''}
+      </div>
+      <div class="star-rating" title="আপনার রেটিং দিন">
+        ${[1,2,3,4,5].map(s => `<span class="star${(item.rating||0)>=s?' active':''}" onclick="setRating(${idx},${s})">★</span>`).join('')}
+        <span style="font-size:11px;color:var(--muted);margin-left:4px;align-self:center;" id="rating-label-${idx}">${item.rating ? item.rating+'/5' : 'Rate this'}</span>
       </div>`}
     </div>
     <div class="result-actions">
@@ -2955,12 +3009,25 @@ function renderResult(item, idx) {
 }
 
 // ===== INLINE EDIT =====
+function setRating(idx, stars) {
+  if (!results[idx]) return;
+  results[idx].rating = stars;
+  // Update stars UI
+  const card = document.getElementById(`result-${idx}`);
+  if (!card) return;
+  card.querySelectorAll('.star').forEach((el, i) => {
+    el.classList.toggle('active', i < stars);
+  });
+  const label = document.getElementById(`rating-label-${idx}`);
+  if (label) label.textContent = stars + '/5';
+  showToast(`⭐ ${stars}/5 রেটিং দেওয়া হয়েছে`);
+}
+
 function removeKeyword(idx, kwIdx) {
   const item = results[idx];
   if (!item || !item.metadata || !item.metadata.keywords) return;
   const removed = item.metadata.keywords.splice(kwIdx, 1)[0];
 
-  // Re-render only the keywords section of this card (fast, no full re-render)
   const kws = item.metadata.keywords;
   const totalKw = kws.length;
   const seenKw = new Set(); const dupSet = new Set();
@@ -2971,14 +3038,17 @@ function removeKeyword(idx, kwIdx) {
     let cls = 'kw';
     if (isBannedKeyword(k)) cls += ' kw-banned';
     else if (dupSet.has(norm)) cls += ' kw-dup';
-    const pct = Math.round(((i + 1) / totalKw) * 100);
-    return `<span class="${cls}" title="Click to remove from CSV" onclick="removeKeyword(${idx}, ${i})" style="cursor:pointer;"><span style="opacity:0.5;font-size:10px;margin-right:2px;">${pct}%</span>${k} <span style="opacity:0.4;font-size:10px;">✕</span></span>`;
+    const weight = Math.round(100 * Math.pow(0.97, i));
+    return `<span class="${cls}" title="Market weight: ${weight}% | Click to remove" onclick="removeKeyword(${idx}, ${i})" style="cursor:pointer;">` +
+      `${k}<span class="kw-weight-pct">${weight}%</span>` +
+      `<span class="kw-bar" style="width:${weight}%"></span>` +
+      `<span style="opacity:0.35;font-size:10px;margin-left:2px;">✕</span>` +
+      `</span>`;
   }).join('');
 
   const kwWrap = document.getElementById(`kw-${idx}`);
   if (kwWrap) kwWrap.innerHTML = kwHtml;
 
-  // Update KW count in meta bar
   const card = document.getElementById(`result-${idx}`);
   if (card) {
     const metaBar = card.querySelector('.result-meta');
@@ -3434,6 +3504,9 @@ async function downloadAllPlatformsCSV() {
 
 
 async function downloadZip() {
+  // If Auto Rename is ON, use the rename+zip flow instead
+  if (isAutoRenameOn()) { downloadRenameZip(); return; }
+
   if (results.length === 0) { showToast('⚠️ No results to download'); return; }
   if (!window.JSZip) {
     showToast('⏳ Loading ZIP engine…');
@@ -3472,7 +3545,180 @@ async function downloadZip() {
   }
 }
 
-// ===== PROGRESS =====
+function toggleAutoRename(el) {
+  el.classList.toggle('on');
+  const isOn = el.classList.contains('on');
+  document.getElementById('autoRenameStatus').style.display = isOn ? 'block' : 'none';
+  document.getElementById('autoRenameOffMsg').style.display = isOn ? 'none' : 'block';
+  showToast(isOn ? '✏️ Auto Rename ON — ZIP করলে SEO নাম হবে' : '✏️ Auto Rename OFF');
+}
+
+function isAutoRenameOn() {
+  const el = document.getElementById('autoRenameToggle');
+  return el && el.classList.contains('on');
+}
+
+// ===== AI AUTO RENAME + ZIP =====
+async function downloadRenameZip() {
+  if (results.length === 0) { showToast('⚠️ কোনো result নেই'); return; }
+  const provider = document.getElementById('aiProvider').value;
+  const apiKey = apiKeys[provider];
+  if (!apiKey) { openModal(); showToast('⚠️ API key দিন'); return; }
+
+  const btn = document.getElementById('dlRenameZipBtn');
+  btn.disabled = true; btn.textContent = '⏳ AI Renaming…';
+
+  try {
+    if (!window.JSZip) {
+      showToast('⏳ ZIP engine লোড হচ্ছে…');
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+    }
+
+    const zip = new JSZip();
+    const imgFolder = zip.folder('renamed-images');
+    const renameMap = []; // {original, renamed, ext}
+    const usedNames = new Set();
+
+    for (let i = 0; i < results.length; i++) {
+      const item = results[i];
+      const md = item.metadata;
+      btn.textContent = `⏳ Renaming ${i+1}/${results.length}…`;
+
+      let seoName = '';
+
+      // Build SEO name from existing metadata first (title-based)
+      if (md && md.title && !md.error) {
+        seoName = md.title
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .trim()
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .slice(0, 80);
+      }
+
+      // If no good title, ask AI for SEO filename
+      if (!seoName || seoName.length < 5) {
+        try {
+          const renamePrompt = `You are an SEO expert for Adobe Stock, Shutterstock, and Freepik.
+Look at this image and generate a PERFECT SEO-optimized file name.
+
+Rules:
+- 4 to 8 words only
+- All lowercase
+- Words separated by hyphens (-)
+- No spaces, no special characters, no numbers at start
+- Describe the main subject + style + use case
+- Optimize for stock marketplace search ranking
+- Example: tropical-fruit-coloring-page-line-art or school-supplies-black-white-vector-illustration
+
+Return ONLY the filename (no extension, no explanation, no quotes).`;
+
+          let aiName = '';
+          if (provider === 'gemini') {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ contents: [{ parts: [
+                ...(item.base64 ? [{ inline_data: { mime_type: item.mimeType || 'image/jpeg', data: item.base64 } }] : []),
+                { text: renamePrompt }
+              ]}]})
+            });
+            const data = await res.json();
+            aiName = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+          } else {
+            // OpenAI / OpenRouter
+            const msgs = [{ role: 'user', content: [
+              ...(item.base64 ? [{ type: 'image_url', image_url: { url: `data:${item.mimeType||'image/jpeg'};base64,${item.base64}` } }] : []),
+              { type: 'text', text: renamePrompt }
+            ]}];
+            const endpoint = provider === 'openai' ? 'https://api.openai.com/v1/chat/completions' : 'https://openrouter.ai/api/v1/chat/completions';
+            const model = provider === 'openai' ? 'gpt-4o-mini' : 'google/gemini-2.0-flash-001';
+            const res = await fetch(endpoint, {
+              method: 'POST', headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${apiKey}` },
+              body: JSON.stringify({ model, messages: msgs, max_tokens: 50 })
+            });
+            const data = await res.json();
+            aiName = data?.choices?.[0]?.message?.content?.trim() || '';
+          }
+          seoName = aiName.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+        } catch(e) { console.warn('AI rename failed for', item.file.name, e); }
+      }
+
+      // Fallback: use original name cleaned up
+      if (!seoName || seoName.length < 3) {
+        seoName = item.file.name.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').slice(0, 60);
+      }
+
+      // Ensure unique name
+      const ext = '.' + item.file.name.split('.').pop().toLowerCase();
+      let finalName = seoName + ext;
+      let counter = 2;
+      while (usedNames.has(finalName)) { finalName = seoName + '-' + counter + ext; counter++; }
+      usedNames.add(finalName);
+
+      renameMap.push({ original: item.file.name, renamed: finalName, idx: i });
+      results[i].seoFilename = finalName; // Save for CSV
+
+      // Embed metadata into image comment (for JPEG/PNG via text chunk in ZIP)
+      // We store as a sidecar .txt file alongside the image
+      const metaTxt = [
+        `File: ${finalName}`,
+        `Original: ${item.file.name}`,
+        `Title: ${md.title || ''}`,
+        `Description: ${md.description || ''}`,
+        `Keywords: ${(md.keywords || []).join(', ')}`,
+        `Category: ${md.category || ''} (#${md.category_number || ''})`,
+        `Rating: ${item.rating ? item.rating + '/5' : 'Not rated'}`,
+        `Generated: ${new Date().toISOString()}`,
+      ].join('\n');
+
+      // Add image file with SEO name
+      try {
+        const arrayBuf = await item.file.arrayBuffer();
+        imgFolder.file(finalName, arrayBuf);
+        imgFolder.file(finalName.replace(ext, '.txt'), metaTxt);
+      } catch(e) { console.warn('Could not add file', e); }
+    }
+
+    btn.textContent = '⏳ Building ZIP…';
+
+    // Build rename report CSV
+    const renameCSV = '\uFEFF' + 'Original Name,SEO Renamed,Rating\r\n' +
+      renameMap.map(r => {
+        const rating = results[r.idx]?.rating || '';
+        return `"${r.original}","${r.renamed}","${rating ? rating+'/5' : ''}"`;
+      }).join('\r\n');
+    zip.file('rename-report.csv', renameCSV);
+
+    // Also include full metadata CSV with SEO filenames
+    const csvRows = results.filter(r => r.metadata && !r.metadata.error).map(r => {
+      const fn = r.seoFilename || r.file.name;
+      const md = r.metadata;
+      return [csvQ(fn), csvQ(md.title||''), csvQ(md.description||''), csvQ((md.keywords||[]).join(', ')), csvQ(md.category||''), csvQ(String(md.category_number||''))].join(',');
+    });
+    const fullCSV = '\uFEFF' + 'Filename,Title,Description,Keywords,Category,Category Number\r\n' + csvRows.join('\r\n');
+    zip.file('metadata.csv', fullCSV);
+
+    // Generate ZIP
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } },
+      meta => { btn.textContent = `⏳ ${Math.round(meta.percent)}%`; });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'robi-graphics-renamed.zip';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`✅ ${results.length}টি ফাইল SEO rename হয়ে ZIP হয়েছে!`);
+
+  } catch(e) {
+    showToast('❌ Error: ' + e.message);
+    console.error(e);
+  } finally {
+    btn.disabled = false; btn.textContent = '✏️ AI Rename + ZIP';
+  }
+}
+
 function updateProgress(pct, status) {
   document.getElementById('progressFill').style.width = pct + '%';
   document.getElementById('progressPct').textContent = pct + '%';
