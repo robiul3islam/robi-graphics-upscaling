@@ -3691,58 +3691,78 @@ function embedJpegFull(arrayBuf, md, rating) {
   return out.buffer;
 }
 
-// ── PNG embed: tEXt chunks (safe, no corruption) ──
+// ── PNG embed: iTXt + XMP for Windows Properties ──
 function embedPngFull(arrayBuf, md, rating) {
   const src = new Uint8Array(arrayBuf);
-  const enc = new TextEncoder();
+  if (src[0]!==0x89||src[1]!==0x50||src[2]!==0x4E||src[3]!==0x47) return arrayBuf;
 
-  // PNG CRC32 for chunk validation
-  function makeTEXt(keyword, text) {
-    // iTXt: UTF-8 safe chunk (keyword NUL 0 0 NUL NUL text)
+  const enc  = new TextEncoder();
+  const stars = Math.min(5, Math.max(0, parseInt(rating)||0));
+
+  function makeITXt(keyword, text) {
     const kw = enc.encode(keyword.slice(0,79));
     const tx = enc.encode(String(text||'').slice(0, 1000));
     const d  = new Uint8Array(kw.length + 5 + tx.length);
     d.set(kw);
-    d[kw.length]=0; d[kw.length+1]=0; d[kw.length+2]=0; d[kw.length+3]=0; d[kw.length+4]=0;
-    d.set(tx, kw.length + 5);
-    const t = enc.encode('iTXt');
-    const len = d.length;
-    const lenB = new Uint8Array([(len>>24)&0xFF,(len>>16)&0xFF,(len>>8)&0xFF,len&0xFF]);
-    const crcIn = new Uint8Array(t.length + d.length);
-    crcIn.set(t); crcIn.set(d, t.length);
-    const crcV = crc32(crcIn);
-    const crcB = new Uint8Array([(crcV>>24)&0xFF,(crcV>>16)&0xFF,(crcV>>8)&0xFF,crcV&0xFF]);
-    const chunk = new Uint8Array(4 + 4 + d.length + 4);
-    chunk.set(lenB); chunk.set(t,4); chunk.set(d,8); chunk.set(crcB, 8+d.length);
+    d[kw.length]=0; d[kw.length+1]=0; d[kw.length+2]=0;
+    d[kw.length+3]=0; d[kw.length+4]=0;
+    d.set(tx, kw.length+5);
+    return makeChunk('iTXt', d);
+  }
+
+  function makeChunk(type, data) {
+    const t    = enc.encode(type);
+    const lenB = new Uint8Array(4);
+    const len  = data.length;
+    lenB[0]=(len>>24)&0xFF; lenB[1]=(len>>16)&0xFF;
+    lenB[2]=(len>>8)&0xFF;  lenB[3]=len&0xFF;
+    const crcBuf = new Uint8Array(t.length+data.length);
+    crcBuf.set(t); crcBuf.set(data,t.length);
+    const cv = crc32(crcBuf);
+    const crcB = new Uint8Array([(cv>>24)&0xFF,(cv>>16)&0xFF,(cv>>8)&0xFF,cv&0xFF]);
+    const chunk = new Uint8Array(4+4+data.length+4);
+    chunk.set(lenB,0); chunk.set(t,4); chunk.set(data,8); chunk.set(crcB,8+data.length);
     return chunk;
   }
 
-  const stars = rating ? Math.min(5, Math.max(1, parseInt(rating)||0)) : 0;
+  // XMP for Windows Properties (Title, Rating, Tags, Comments)
+  const xmpStr = buildXMP(md, stars);
+  const xmpKW  = enc.encode('XML:com.adobe.xmp');
+  const xmpTX  = enc.encode(xmpStr);
+  // iTXt: keyword NUL 0 0 NUL NUL xmp
+  const xmpD   = new Uint8Array(xmpKW.length + 5 + xmpTX.length);
+  xmpD.set(xmpKW);
+  xmpD[xmpKW.length]=0; xmpD[xmpKW.length+1]=0; xmpD[xmpKW.length+2]=0;
+  xmpD[xmpKW.length+3]=0; xmpD[xmpKW.length+4]=0;
+  xmpD.set(xmpTX, xmpKW.length+5);
+  const xmpChunk = makeChunk('iTXt', xmpD);
+
   const chunks = [
-    makeTEXt('Title',       md.title||''),
-    makeTEXt('Description', md.description||''),
-    makeTEXt('Comment',     md.description||''),
-    makeTEXt('Keywords',    (md.keywords||[]).join('; ')),
-    makeTEXt('Category',    md.category||''),
-    makeTEXt('Rating',      String(stars)),
+    makeITXt('Title',    md.title||''),
+    makeITXt('Comment',  md.description||''),
+    makeITXt('Keywords', (md.keywords||[]).join('; ')),
+    makeITXt('Rating',   String(stars)),
+    xmpChunk,
   ];
   const totalExtra = chunks.reduce((a,c)=>a+c.length,0);
 
-  // Find IEND chunk properly (search from end)
-  let iendPos = src.length - 12;
-  for (let i = src.length - 12; i >= 8; i--) {
+  // Find IEND
+  let iendPos = -1;
+  for (let i = src.length-12; i >= 8; i--) {
     if (src[i+4]===0x49&&src[i+5]===0x45&&src[i+6]===0x4E&&src[i+7]===0x44) {
       iendPos = i; break;
     }
   }
+  if (iendPos < 0) return arrayBuf;
 
   const out = new Uint8Array(src.length + totalExtra);
   out.set(src.slice(0, iendPos));
   let off = iendPos;
-  chunks.forEach(c => { out.set(c, off); off += c.length; });
+  for (const c of chunks) { out.set(c, off); off+=c.length; }
   out.set(src.slice(iendPos));
   return out.buffer;
 }
+
 
 // ── SVG: inject XMP + metadata as XML comments ──
 function embedSvgFull(arrayBuf, md, rating) {
