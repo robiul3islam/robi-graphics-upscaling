@@ -2893,12 +2893,15 @@ function renderResult(item, idx) {
   });
   const bannedCount = kws.filter(isBannedKeyword).length;
 
-  const kwHtml = kws.map(k => {
+  const totalKw = kws.length;
+  const kwHtml = kws.map((k, i) => {
     const norm = String(k).toLowerCase().trim();
     let cls = 'kw';
     if (isBannedKeyword(k)) cls += ' kw-banned';
     else if (dupSet.has(norm)) cls += ' kw-dup';
-    return `<span class="${cls}" title="${isBannedKeyword(k) ? 'Banned/risky word' : (dupSet.has(norm) ? 'Duplicate keyword' : '')}">${k}</span>`;
+    const pct = Math.round(((i + 1) / totalKw) * 100);
+    const title = isBannedKeyword(k) ? 'Banned/risky word — click to remove' : (dupSet.has(norm) ? 'Duplicate keyword — click to remove' : 'Click to remove from CSV');
+    return `<span class="${cls}" title="${title}" onclick="removeKeyword(${idx}, ${i})" style="cursor:pointer;"><span style="opacity:0.5;font-size:10px;margin-right:2px;">${pct}%</span>${k} <span style="opacity:0.4;font-size:10px;">✕</span></span>`;
   }).join('');
 
   const card = document.createElement('div');
@@ -2952,6 +2955,41 @@ function renderResult(item, idx) {
 }
 
 // ===== INLINE EDIT =====
+function removeKeyword(idx, kwIdx) {
+  const item = results[idx];
+  if (!item || !item.metadata || !item.metadata.keywords) return;
+  const removed = item.metadata.keywords.splice(kwIdx, 1)[0];
+
+  // Re-render only the keywords section of this card (fast, no full re-render)
+  const kws = item.metadata.keywords;
+  const totalKw = kws.length;
+  const seenKw = new Set(); const dupSet = new Set();
+  kws.forEach(k => { const n = k.toLowerCase().trim(); if (seenKw.has(n)) dupSet.add(n); seenKw.add(n); });
+
+  const kwHtml = kws.map((k, i) => {
+    const norm = k.toLowerCase().trim();
+    let cls = 'kw';
+    if (isBannedKeyword(k)) cls += ' kw-banned';
+    else if (dupSet.has(norm)) cls += ' kw-dup';
+    const pct = Math.round(((i + 1) / totalKw) * 100);
+    return `<span class="${cls}" title="Click to remove from CSV" onclick="removeKeyword(${idx}, ${i})" style="cursor:pointer;"><span style="opacity:0.5;font-size:10px;margin-right:2px;">${pct}%</span>${k} <span style="opacity:0.4;font-size:10px;">✕</span></span>`;
+  }).join('');
+
+  const kwWrap = document.getElementById(`kw-${idx}`);
+  if (kwWrap) kwWrap.innerHTML = kwHtml;
+
+  // Update KW count in meta bar
+  const card = document.getElementById(`result-${idx}`);
+  if (card) {
+    const metaBar = card.querySelector('.result-meta');
+    if (metaBar) {
+      const kwSpan = [...metaBar.querySelectorAll('span')].find(s => s.textContent.includes('KW:'));
+      if (kwSpan) kwSpan.innerHTML = `KW: <strong>${totalKw}</strong>`;
+    }
+  }
+  showToast(`🗑 "${removed}" বাদ দেওয়া হয়েছে (${totalKw} remaining)`);
+}
+
 function saveEditedField(idx, field, el) {
   const newVal = el.textContent.trim();
   if (!results[idx] || !results[idx].metadata) return;
@@ -3450,6 +3488,12 @@ function togglePause() {
 
 // ===== MODAL =====
 function openModal() {
+  // Sync modal provider with sidebar provider
+  const sidebarProvider = document.getElementById('aiProvider');
+  if (sidebarProvider) {
+    const modalProvider = document.getElementById('modalProvider');
+    if (modalProvider) modalProvider.value = sidebarProvider.value;
+  }
   document.getElementById('modalBg').classList.add('show');
   updateModalKey();
 }
@@ -3463,8 +3507,19 @@ function updateModalKey() {
 function saveApiKey() {
   const p = document.getElementById('modalProvider').value;
   const v = document.getElementById('apiKeyInput').value.trim();
-  if (v) { apiKeys[p] = v; localStorage.setItem('robig_keys', JSON.stringify(apiKeys)); }
-  document.getElementById('keyStatus').textContent = v ? '✅ Key saved' : '⚠ No key saved';
+  if (v) {
+    apiKeys[p] = v;
+    localStorage.setItem('robig_keys', JSON.stringify(apiKeys));
+    document.getElementById('keyStatus').textContent = '✅ Key saved';
+    const btn = document.querySelector('.btn-api');
+    if (btn) btn.textContent = '🔑 API Key ✅';
+  } else {
+    delete apiKeys[p];
+    localStorage.setItem('robig_keys', JSON.stringify(apiKeys));
+    document.getElementById('keyStatus').textContent = '⚠ No key saved';
+    const btn = document.querySelector('.btn-api');
+    if (btn) btn.textContent = '🔑 API Key';
+  }
 }
 async function testKey() {
   const p = document.getElementById('modalProvider').value;
@@ -3961,6 +4016,25 @@ function downloadAllGeneratedPrompts() {
     if (e.target === this) this.classList.remove('show');
   });
 });
+
+// ── On page load: show saved key indicator on API button ──────────
+(function initApiKeyIndicator() {
+  const savedKeys = JSON.parse(localStorage.getItem('robig_keys') || '{}');
+  const btn = document.querySelector('.btn-api');
+  const providerEl = document.getElementById('aiProvider');
+
+  function updateBtnIndicator() {
+    const p = providerEl ? providerEl.value : 'gemini';
+    if (savedKeys[p]) {
+      if (btn) btn.textContent = '🔑 API Key ✅';
+    } else {
+      if (btn) btn.textContent = '🔑 API Key';
+    }
+  }
+
+  if (providerEl) providerEl.addEventListener('change', updateBtnIndicator);
+  updateBtnIndicator();
+})();
 </script>
 </body>
 </html>
