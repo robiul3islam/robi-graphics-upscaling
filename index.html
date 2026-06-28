@@ -1088,6 +1088,9 @@
     <div style="font-size:11px;color:var(--muted);margin-top:4px;">
       <span id="keyStatus">No key saved</span>
     </div>
+    <button class="btn btn-export" style="width:100%;justify-content:center;font-size:12px;padding:8px;margin-top:10px;" onclick="addKeyToList()">➕ এই key-টা list-এ যুক্ত করো (একাধিক key রাখতে)</button>
+    <div style="font-size:11px;color:var(--muted);margin-top:10px;margin-bottom:4px;font-family:'Space Mono',monospace;">SAVED KEYS (এই provider-এর জন্য)</div>
+    <div id="keyListWrap" style="max-height:160px;overflow-y:auto;"></div>
     <div class="modal-btns">
       <button class="btn btn-generate" style="flex:1;justify-content:center;" onclick="testKey()">🧪 Test Key</button>
       <button class="btn btn-clear" style="flex:1;justify-content:center;" onclick="closeModal()">Close</button>
@@ -2084,6 +2087,13 @@ function getPreviewSrc(f) {
   return null;
 }
 
+// "Auto Download CSV" toggle in the sidebar — was previously never read
+// anywhere, so turning it on/off had zero effect.
+function isAutoCsvOn() {
+  const t = document.getElementById('csvToggle');
+  return !!(t && t.classList.contains('on'));
+}
+
 // FLIP animation: captures the element's position before a CSS class/order
 // change, then animates the visual delta away — used so a thumbnail
 // smoothly *slides* to its new spot in the grid the instant its metadata
@@ -2379,6 +2389,9 @@ async function startGeneration() {
     renderPreviews();
     document.getElementById('fileCount').textContent = '0';
     showToast(`✦ সব ${results.length}টি সফল!`);
+    if (isAutoCsvOn() && results.length > 0) {
+      setTimeout(() => exportCSV(), 400);
+    }
   }
 }
 
@@ -2463,6 +2476,9 @@ async function autoRetryUntilDone() {
     renderPreviews();
     document.getElementById('fileCount').textContent = '0';
     showToast(`✅ সব সফল!`);
+    if (isAutoCsvOn() && results.length > 0) {
+      setTimeout(() => exportCSV(), 400);
+    }
   } else {
     document.getElementById('failedCount').textContent = finalFailed.length;
     showToast(`⚠ ${finalFailed.length}টি এখনো failed — manual retry করুন`);
@@ -4017,9 +4033,21 @@ function openModal() {
 function closeModal() { document.getElementById('modalBg').classList.remove('show'); }
 function updateModalKey() {
   const p = document.getElementById('modalProvider').value;
+  // Keep the sidebar's main provider dropdown in sync with whatever
+  // provider is selected in this modal. Previously these two <select>
+  // elements could disagree — you'd save a key for the provider chosen
+  // in the modal, but Generate would look up the key under whatever
+  // provider was still selected in the sidebar, finding nothing and
+  // asking you to re-enter the key every time.
+  const sidebarProvider = document.getElementById('aiProvider');
+  if (sidebarProvider && sidebarProvider.value !== p) {
+    sidebarProvider.value = p;
+    if (typeof updateModelList === 'function') updateModelList();
+  }
   const input = document.getElementById('apiKeyInput');
   input.value = apiKeys[p] || '';
   document.getElementById('keyStatus').textContent = apiKeys[p] ? '✅ Key saved' : '⚠ No key saved';
+  renderKeyList();
 }
 function saveApiKey() {
   const p = document.getElementById('modalProvider').value;
@@ -4037,6 +4065,72 @@ function saveApiKey() {
     const btn = document.querySelector('.btn-api');
     if (btn) btn.textContent = '🔑 API Key';
   }
+  renderKeyList();
+}
+
+// ===== MULTIPLE SAVED API KEYS PER PROVIDER =====
+// Lets the user store several keys per provider (e.g. to switch when one
+// hits a rate limit) instead of only ever having one active key.
+let apiKeyLists = JSON.parse(localStorage.getItem('robig_key_list') || '{}');
+
+function maskKey(k) {
+  if (k.length <= 8) return k.slice(0,2) + '••••' + k.slice(-2);
+  return k.slice(0,4) + '••••••' + k.slice(-4);
+}
+
+function addKeyToList() {
+  const p = document.getElementById('modalProvider').value;
+  const v = document.getElementById('apiKeyInput').value.trim();
+  if (!v) { showToast('⚠️ প্রথমে একটা key লিখুন'); return; }
+  if (!apiKeyLists[p]) apiKeyLists[p] = [];
+  if (apiKeyLists[p].includes(v)) {
+    showToast('ℹ️ এই key আগেই list-এ আছে');
+  } else {
+    apiKeyLists[p].push(v);
+    localStorage.setItem('robig_key_list', JSON.stringify(apiKeyLists));
+    showToast('✅ Key list-এ যুক্ত হয়েছে');
+  }
+  renderKeyList();
+}
+
+function useKeyFromList(p, idx) {
+  const k = (apiKeyLists[p] || [])[idx];
+  if (!k) return;
+  apiKeys[p] = k;
+  localStorage.setItem('robig_keys', JSON.stringify(apiKeys));
+  const input = document.getElementById('apiKeyInput');
+  if (input) input.value = k;
+  document.getElementById('keyStatus').textContent = '✅ Key saved (active)';
+  const btn = document.querySelector('.btn-api');
+  if (btn) btn.textContent = '🔑 API Key ✅';
+  renderKeyList();
+  showToast('🔁 Active key পরিবর্তন হয়েছে');
+}
+
+function deleteKeyFromList(p, idx) {
+  if (!apiKeyLists[p]) return;
+  apiKeyLists[p].splice(idx, 1);
+  localStorage.setItem('robig_key_list', JSON.stringify(apiKeyLists));
+  renderKeyList();
+}
+
+function renderKeyList() {
+  const wrap = document.getElementById('keyListWrap');
+  if (!wrap) return;
+  const p = document.getElementById('modalProvider').value;
+  const list = apiKeyLists[p] || [];
+  if (list.length === 0) {
+    wrap.innerHTML = `<div style="font-size:11px;color:var(--muted);">কোনো saved key list নেই এই provider-এর জন্য।</div>`;
+    return;
+  }
+  wrap.innerHTML = list.map((k, i) => {
+    const active = apiKeys[p] === k;
+    return `<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border:1px solid ${active ? 'var(--accent)' : 'var(--border)'};border-radius:6px;margin-bottom:6px;">
+      <span style="flex:1;font-family:'Space Mono',monospace;font-size:12px;">${maskKey(k)}${active ? ' ✅' : ''}</span>
+      <button class="btn" style="padding:3px 8px;font-size:11px;" onclick="useKeyFromList('${p}',${i})">Use</button>
+      <button class="btn btn-clear" style="padding:3px 8px;font-size:11px;" onclick="deleteKeyFromList('${p}',${i})">🗑</button>
+    </div>`;
+  }).join('');
 }
 async function testKey() {
   const p = document.getElementById('modalProvider').value;
