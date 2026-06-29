@@ -724,8 +724,8 @@
     <div class="sidebar-section">
       <div class="sidebar-label">Generation Settings</div>
       <div class="slider-wrap">
-        <div class="slider-header"><span>Batch Size</span><span id="batchVal">5x</span></div>
-        <input type="range" min="1" max="20" value="5" id="batchSlider" oninput="document.getElementById('batchVal').textContent=this.value+'x'">
+        <div class="slider-header"><span>Batch Size</span><span id="batchVal">8x</span></div>
+        <input type="range" min="1" max="20" value="8" id="batchSlider" oninput="document.getElementById('batchVal').textContent=this.value+'x'; parallelWorkers=parseInt(this.value); syncWorkerSlider(this.value);">
       </div>
       <div class="slider-wrap" style="margin-top:14px;">
         <div class="slider-header"><span>RPM Limit</span><span id="rpmVal">15/min</span></div>
@@ -999,9 +999,12 @@
       <div class="progress-text" id="promptProgressText">Processing…</div>
     </div>
 
-    <div class="results-header" style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px;">
+    <div class="results-header" style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px;gap:8px;flex-wrap:wrap;">
       <h3 style="color:var(--accent2);">GENERATED PROMPTS <span class="results-count" id="promptResultCount">0</span></h3>
-      <button class="btn btn-export" id="dlPromptResultsBtn" onclick="downloadAllGeneratedPrompts()" style="display:none;font-size:13px;padding:10px 16px;">📝 Download All Prompts (.txt)</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-export" id="dlPromptResultsBtn" onclick="downloadAllGeneratedPrompts()" style="display:none;font-size:13px;padding:10px 16px;">📝 Download All Prompts (.txt)</button>
+        <button class="btn btn-export" id="dlPromptResultsCsvBtn" onclick="downloadAllGeneratedPromptsCSV()" style="display:none;font-size:13px;padding:10px 16px;">📊 Download CSV</button>
+      </div>
     </div>
 
     <div class="result-list" id="promptResultList">
@@ -1151,8 +1154,8 @@
 
     <div class="modal-section-label">Worker Threads</div>
     <div class="slider-wrap">
-      <div class="slider-header"><span>Parallel Workers</span><span id="workerVal">5</span></div>
-      <input type="range" min="1" max="15" value="5" oninput="document.getElementById('workerVal').textContent=this.value; parallelWorkers=parseInt(this.value);">
+      <div class="slider-header"><span>Parallel Workers</span><span id="workerVal">8</span></div>
+      <input type="range" min="1" max="15" value="8" id="workerSlider" oninput="document.getElementById('workerVal').textContent=this.value; parallelWorkers=parseInt(this.value); syncBatchSlider(this.value);">
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:4px;">More workers = faster processing for large batches. Higher values may hit rate limits.</div>
 
@@ -1249,7 +1252,24 @@ let paused = false;
 let currentPlatform = 'general';
 let poppedInKeys = new Set(); // tracks which preview thumbnails already played their entrance animation
 let apiKeys = JSON.parse(localStorage.getItem('robig_keys') || '{}');
-let parallelWorkers = 5;
+let parallelWorkers = 8; // bumped from 5 — faster default throughput
+
+// Keeps the sidebar "Batch Size" slider and the Settings "Parallel Workers"
+// slider in sync — previously the sidebar one was purely decorative (only
+// updated its own label) and never actually changed concurrency.
+function syncWorkerSlider(v) {
+  const s = document.getElementById('workerSlider');
+  const lbl = document.getElementById('workerVal');
+  const clamped = Math.min(15, parseInt(v));
+  if (s) s.value = clamped;
+  if (lbl) lbl.textContent = clamped;
+}
+function syncBatchSlider(v) {
+  const s = document.getElementById('batchSlider');
+  const lbl = document.getElementById('batchVal');
+  if (s) s.value = v;
+  if (lbl) lbl.textContent = v + 'x';
+}
 let outputFilename = localStorage.getItem('robig_outname') || 'robi-graphics';
 let selectedExt = 'keep'; // extension override
 let resultFilter = 'all'; // 'all' | 'success' | 'failed'
@@ -2314,7 +2334,7 @@ async function startGeneration() {
         if (pFill) pFill.style.width = '60%';
         const prompt = buildPrompt(titleLen, descLen, kwCount, currentPlatform);
         const fullPromptUsed = textContext ? `${textContext}\n\n${'─'.repeat(40)}\n\n${prompt}` : prompt;
-        const metadata = await callAI(provider, apiKey, base64, mimeType, prompt, textContext);
+        const metadata = await callAIWithRotation(provider, base64, mimeType, prompt, textContext);
         const previewSrc = base64
           ? `data:image/jpeg;base64,${base64}`
           : (filePreviewMap[key] || null);
@@ -2349,7 +2369,6 @@ async function startGeneration() {
         document.getElementById('filterBar').style.display = 'flex';
       }
       updateProgress(Math.round((completed / total) * 100), `Processing ${completed} of ${total}…`);
-      await sleep(40);
     }
   }
 
@@ -2442,7 +2461,7 @@ async function autoRetryUntilDone() {
           base64 = await fileToBase64(item.file);
           mimeType = item.file.type;
         }
-        const metadata = await callAI(provider, apiKey, base64, mimeType, prompt, textContext);
+        const metadata = await callAIWithRotation(provider, base64, mimeType, prompt, textContext);
         const previewSrc = base64 ? `data:image/jpeg;base64,${base64}` : (filePreviewMap[key] || null);
         results[idx].metadata = metadata;
         results[idx].base64 = base64;
@@ -2454,14 +2473,14 @@ async function autoRetryUntilDone() {
       } catch(e) {
         results[idx].metadata = { error: e.message, title: 'Error', description: e.message, keywords: [] };
       }
-      await sleep(200);
+      await sleep(80);
     }
 
     const remaining = results.filter(r => r.metadata?.error);
     document.getElementById('failedCount').textContent = remaining.length;
     if (remaining.length === 0) break;
     // Wait before next round
-    await sleep(1200);
+    await sleep(500);
   }
 
   const finalFailed = results.filter(r => r.metadata?.error);
@@ -3332,7 +3351,7 @@ async function regenResult(idx) {
   const kwCount  = document.querySelector('input[oninput*="kwVal"]').value;
   const prompt = buildPrompt(titleLen, descLen, kwCount, currentPlatform);
   try {
-    const metadata = await callAI(provider, apiKey, item.base64, item.mimeType, prompt);
+    const metadata = await callAIWithRotation(provider, item.base64, item.mimeType, prompt);
     results[idx].metadata = metadata;
     results[idx].promptUsed = prompt;
     document.getElementById(`result-${idx}`)?.remove();
@@ -4114,6 +4133,32 @@ function deleteKeyFromList(p, idx) {
   renderKeyList();
 }
 
+// ===== RPM THROTTLING (was previously decorative-only) =====
+// The "RPM Limit" slider in the sidebar used to only update its own label —
+// nothing actually paced requests. That's why batches over ~15 images
+// would blast past a provider's real per-minute quota (e.g. Gemini's free
+// tier 15 RPM) and every request after the first ~15 would fail outright.
+// This tracks recent call timestamps per provider and waits whenever the
+// configured RPM would otherwise be exceeded, so ANY batch size (100+
+// images) paces itself automatically instead of erroring out.
+let rpmCallLog = {};
+async function rpmGate(provider) {
+  const rpmEl = document.getElementById('rpmSlider');
+  const limit = rpmEl ? parseInt(rpmEl.value) : 15;
+  if (!limit || limit <= 0) return;
+  if (!rpmCallLog[provider]) rpmCallLog[provider] = [];
+  let now = Date.now();
+  rpmCallLog[provider] = rpmCallLog[provider].filter(t => now - t < 60000);
+  if (rpmCallLog[provider].length >= limit) {
+    const oldest = rpmCallLog[provider][0];
+    const waitMs = 60000 - (now - oldest) + 100;
+    if (waitMs > 0) await sleep(waitMs);
+    now = Date.now();
+    rpmCallLog[provider] = rpmCallLog[provider].filter(t => now - t < 60000);
+  }
+  rpmCallLog[provider].push(Date.now());
+}
+
 function renderKeyList() {
   const wrap = document.getElementById('keyListWrap');
   if (!wrap) return;
@@ -4131,6 +4176,82 @@ function renderKeyList() {
       <button class="btn btn-clear" style="padding:3px 8px;font-size:11px;" onclick="deleteKeyFromList('${p}',${i})">🗑</button>
     </div>`;
   }).join('');
+}
+
+// ===== AUTO KEY ROTATION ON RATE-LIMIT / QUOTA ERRORS =====
+// Once a saved key list exists for a provider, the app automatically
+// switches to the next saved key when the active one hits a rate limit
+// or quota error — no manual "Use" click needed mid-batch.
+function isRateLimitError(msg) {
+  if (!msg) return false;
+  const m = String(msg).toLowerCase();
+  return m.includes('429') || m.includes('rate limit') || m.includes('rate_limit') ||
+         m.includes('quota') || m.includes('resource_exhausted') ||
+         m.includes('too many requests') || m.includes('exceeded') ||
+         m.includes('insufficient_quota');
+}
+
+// Rotates apiKeys[provider] to the next key in the saved list (cycling).
+// Returns true if it actually switched to a different key, false if there
+// is no other saved key available to rotate to.
+function rotateApiKey(provider, currentKey) {
+  const list = apiKeyLists[provider] || [];
+  let pool = list.slice();
+  if (currentKey && !pool.includes(currentKey)) pool.unshift(currentKey);
+  if (pool.length <= 1) return false;
+  const idx = Math.max(0, pool.indexOf(currentKey));
+  const nextKey = pool[(idx + 1) % pool.length];
+  if (!nextKey || nextKey === currentKey) return false;
+  apiKeys[provider] = nextKey;
+  localStorage.setItem('robig_keys', JSON.stringify(apiKeys));
+  const modalP = document.getElementById('modalProvider');
+  if (modalP && modalP.value === provider) {
+    const input = document.getElementById('apiKeyInput');
+    if (input) input.value = nextKey;
+    renderKeyList();
+  }
+  return true;
+}
+
+// Drop-in replacement for callAI() that automatically rotates through all
+// saved keys for this provider if the current one hits a rate-limit/quota
+// error, instead of immediately failing the whole item.
+async function callAIWithRotation(provider, base64, mimeType, prompt, textContext) {
+  const triedKeys = new Set();
+  let lastErr;
+  const ceiling = (apiKeyLists[provider]?.length || 0) + 2; // safety bound
+  for (let attempt = 0; attempt < ceiling; attempt++) {
+    const key = apiKeys[provider];
+    if (!key) throw new Error(`No API key set for ${provider}`);
+    if (triedKeys.has(key)) {
+      if (!rotateApiKey(provider, key)) break; // nothing left to try
+      continue;
+    }
+    triedKeys.add(key);
+    await rpmGate(provider); // pace requests so we don't blast past the real per-minute quota
+    try {
+      return await callAI(provider, key, base64, mimeType, prompt, textContext);
+    } catch (err) {
+      lastErr = err;
+      if (isRateLimitError(err.message)) {
+        if (rotateApiKey(provider, key)) {
+          showToast(`🔁 ${provider} key limit শেষ হয়েছে — পরের saved key দিয়ে চালিয়ে যাচ্ছি…`);
+          continue;
+        }
+        // No other saved key to rotate to — this is usually a transient
+        // per-minute limit, so wait briefly and retry the same key once
+        // more instead of failing the item outright.
+        await sleep(4000);
+        try {
+          return await callAI(provider, key, base64, mimeType, prompt, textContext);
+        } catch (err2) {
+          throw err2;
+        }
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error(`All saved API keys for ${provider} failed`);
 }
 async function testKey() {
   const p = document.getElementById('modalProvider').value;
@@ -4197,7 +4318,7 @@ async function retryFailed() {
           base64 = await fileToBase64(item.file); mimeType = item.file.type;
         }
       }
-      const metadata = await callAI(provider, apiKey, base64, mimeType, prompt, textContext);
+      const metadata = await callAIWithRotation(provider, base64, mimeType, prompt, textContext);
       results[idx].metadata = metadata;
       results[idx].base64 = base64;
       results[idx].mimeType = mimeType;
@@ -4208,7 +4329,7 @@ async function retryFailed() {
     } catch(e) {
       results[idx].metadata = { error: e.message, title:'Error', description: e.message, keywords:[] };
     }
-    await sleep(150);
+    await sleep(60);
   }
 
   const stillFailed = results.filter(r => r.metadata?.error);
@@ -4397,6 +4518,7 @@ function clearPromptFiles() {
   document.getElementById('promptResultList').innerHTML = `<div class="empty" id="promptEmptyState"><div class="ei">✨</div><p>Design upload করুন — AI সেটা দেখে exact recreation prompt লিখে দেবে</p></div>`;
   document.getElementById('promptResultCount').textContent = '0';
   document.getElementById('dlPromptResultsBtn').style.display = 'none';
+  document.getElementById('dlPromptResultsCsvBtn').style.display = 'none';
   showToast('🗑 Cleared');
 }
 
@@ -4526,7 +4648,7 @@ async function startPromptGeneration() {
         const finalInstruction = compressed.transparent
           ? `${instruction}\n\n[IMPORTANT: This source file has a TRANSPARENT background (alpha channel) — the preview is flattened on white only because JPEG cannot carry transparency. Describe/recreate it with a transparent or isolated background, NOT black or white, unless the target tool requires a solid background.]`
           : instruction;
-        const aiResponse = await callAI(provider, apiKey, base64, 'image/jpeg', finalInstruction, null);
+        const aiResponse = await callAIWithRotation(provider, base64, 'image/jpeg', finalInstruction, null);
         const previewSrc = `data:image/jpeg;base64,${base64}`;
         const result = {
           file: f,
@@ -4554,9 +4676,66 @@ async function startPromptGeneration() {
   progressWrap.style.display = 'none';
   btn.disabled = false; btn.textContent = '✨ Generate Prompts';
   const successCount = promptResults.filter(r => !r.error).length;
-  if (successCount > 0) document.getElementById('dlPromptResultsBtn').style.display = 'flex';
+  if (successCount > 0) { document.getElementById('dlPromptResultsBtn').style.display = 'flex'; document.getElementById('dlPromptResultsCsvBtn').style.display = 'flex'; }
   const modeLabel = coloringMode ? 'Coloring Page' : 'prompt';
-  showToast(`✅ ${successCount}/${total}টি ${modeLabel} তৈরি হয়েছে!`);
+  const failedCount = promptResults.filter(r => r.error).length;
+  if (failedCount > 0) {
+    showToast(`⚠ ${failedCount}টি ${modeLabel} failed — auto retry শুরু হচ্ছে 3 সেকেন্ডে…`);
+    setTimeout(() => autoRetryFailedPrompts(targetTool, style, coloringMode), 3000);
+  } else {
+    showToast(`✅ ${successCount}/${total}টি ${modeLabel} তৈরি হয়েছে!`);
+  }
+}
+
+// ===== AUTO RETRY FAILED IMAGE-TO-PROMPT ITEMS — no manual tap needed =====
+async function autoRetryFailedPrompts(targetTool, style, coloringMode) {
+  const MAX_ROUNDS = 5;
+  let round = 0;
+  const instruction = coloringMode ? buildColoringPageInstruction() : buildImageToPromptInstruction(targetTool, style);
+  const provider = document.getElementById('aiProvider').value;
+
+  while (round < MAX_ROUNDS) {
+    const failedIdxs = promptResults.map((r, i) => r.error ? i : -1).filter(i => i >= 0);
+    if (failedIdxs.length === 0) break;
+    if (!apiKeys[provider]) break; // no key — can't retry silently
+    round++;
+    showToast(`🔄 Prompt auto retry ${round}/${MAX_ROUNDS} — ${failedIdxs.length}টি ছবি…`);
+
+    for (const idx of failedIdxs) {
+      const f = promptResults[idx].file;
+      try {
+        const compressed = await compressImageFile(f, 1200, 0.85);
+        const base64 = compressed.base64;
+        const finalInstruction = compressed.transparent
+          ? `${instruction}\n\n[IMPORTANT: This source file has a TRANSPARENT background (alpha channel) — the preview is flattened on white only because JPEG cannot carry transparency. Describe/recreate it with a transparent or isolated background, NOT black or white, unless the target tool requires a solid background.]`
+          : instruction;
+        const aiResponse = await callAIWithRotation(provider, base64, 'image/jpeg', finalInstruction, null);
+        const previewSrc = `data:image/jpeg;base64,${base64}`;
+        promptResults[idx] = {
+          file: f, previewSrc, targetTool,
+          generatedPrompt: aiResponse.prompt || '',
+          negativePrompt: aiResponse.negative_prompt || '',
+          styleNotes: aiResponse.style_notes || '',
+          subjectSummary: aiResponse.subject_summary || '',
+        };
+        document.getElementById(`prompt-result-${idx}`)?.remove();
+        renderPromptResult(promptResults[idx], idx);
+      } catch (e) {
+        promptResults[idx] = { ...promptResults[idx], error: e.message };
+      }
+      await sleep(80);
+    }
+    await sleep(500);
+  }
+
+  const stillFailed = promptResults.filter(r => r.error).length;
+  const successCount = promptResults.filter(r => !r.error).length;
+  if (successCount > 0) {
+    document.getElementById('dlPromptResultsBtn').style.display = 'flex';
+    document.getElementById('dlPromptResultsCsvBtn').style.display = 'flex';
+  }
+  if (stillFailed === 0) showToast(`✅ সব ${successCount}টি prompt সফল হয়েছে!`);
+  else showToast(`⚠️ ${stillFailed}টি এখনো failed — API key/quota চেক করুন`);
 }
 
 function renderPromptResult(item, idx) {
@@ -4606,6 +4785,7 @@ function deletePromptResult(idx) {
   if (promptResults.length === 0) {
     list.innerHTML = `<div class="empty" id="promptEmptyState"><div class="ei">✨</div><p>Design upload করুন — AI সেটা দেখে exact recreation prompt লিখে দেবে</p></div>`;
     document.getElementById('dlPromptResultsBtn').style.display = 'none';
+  document.getElementById('dlPromptResultsCsvBtn').style.display = 'none';
   } else {
     promptResults.forEach((r, i) => renderPromptResult(r, i));
   }
@@ -4647,6 +4827,24 @@ function downloadAllGeneratedPrompts() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast(`✅ ${successResults.length}টি prompt সহ TXT ডাউনলোড হয়েছে!`);
+}
+
+function downloadAllGeneratedPromptsCSV() {
+  const successResults = promptResults.filter(r => !r.error);
+  if (successResults.length === 0) { showToast('⚠️ কোনো prompt নেই'); return; }
+
+  // Only the prompt text — no filename, tool, or other columns.
+  const rows = successResults.map(r => [r.generatedPrompt || '']);
+  const csv = [['Prompt'], ...rows].map(row => row.map(csvQ).join(',')).join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'robi-graphics-image-prompts.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`✅ ${successResults.length}টি prompt সহ CSV ডাউনলোড হয়েছে!`);
 }
 
 // Close modals on bg click
