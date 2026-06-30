@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ℛØℬᎥ Graphics – AI Metadata Generator v22</title>
+<meta name="description" content="ROBI Graphics — AI-powered metadata, keyword, and recreation-prompt generator for stock contributors.">
+<!-- BRANDING: replace href below with your own logo file (PNG/SVG, square, e.g. 64x64) once ready -->
+<link rel="icon" id="faviconLink" type="image/png" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%2300e5ff'/%3E%3Ctext x='50' y='66' font-size='52' font-family='Arial' font-weight='900' fill='%23050a12' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -619,11 +622,54 @@
   }
   .btn-retry-failed:hover { background: rgba(255,45,85,0.25); }
 
-  /* Responsive */
+  /* Responsive — was previously just `.sidebar { display:none }`, which
+     completely hid all the controls (provider, generate button, sliders)
+     on mobile with no way to get to them. Now it's a slide-in drawer. */
+  .mobile-menu-btn { display: none; }
+  .mobile-sidebar-overlay { display: none; position: fixed; inset: 64px 0 0 0; background: rgba(0,0,0,0.55); z-index: 40; }
+  .mobile-sidebar-overlay.show { display: block; }
   @media (max-width: 768px) {
-    .sidebar { display: none; }
-    .content { padding: 12px; }
-    .ptab { padding: 8px 12px; font-size: 12px; }
+    .mobile-menu-btn { display: inline-flex; align-items:center; justify-content:center; }
+    .sidebar {
+      position: fixed; top: 64px; left: 0; bottom: 0; z-index: 50;
+      transform: translateX(-105%); transition: transform 0.25s ease;
+      box-shadow: 4px 0 24px rgba(0,0,0,0.5);
+      width: min(300px, 85vw); min-width: 0;
+    }
+    .sidebar.mobile-open { transform: translateX(0); }
+    .content { padding: 10px; }
+    .ptab { padding: 8px 10px; font-size: 11px; }
+    header { flex-wrap: wrap; gap: 8px; padding: 10px 12px; height: auto; }
+    .logo { font-size: 16px; }
+    .logo span { font-size: 9px; letter-spacing: 2px; }
+
+    /* Smaller thumbnails so more fit on a narrow screen without scrolling forever */
+    .preview-grid { grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 6px; }
+
+    /* Modals: full-width with safe margins, no fixed px widths overflowing the screen */
+    .modal, .modal[style] { width: 94vw !important; max-width: 94vw !important; padding: 18px; max-height: 88vh; overflow-y: auto; }
+    .modal h2 { font-size: 15px; }
+
+    /* Theme grid: 2 columns instead of 3 so labels don't get cramped */
+    .theme-grid { grid-template-columns: repeat(2, 1fr); }
+
+    /* Header view-switch (Metadata / Image-to-Prompt) scrolls horizontally instead of overflowing */
+    .view-switch { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+    .view-switch-btn { white-space: nowrap; font-size: 12px; padding: 8px 10px !important; }
+
+    /* Result cards stack thumbnail above text instead of side-by-side cramping */
+    .result-card { flex-direction: column; }
+    .result-thumb { width: 100%; min-width: 0; height: 160px; }
+
+    /* Action buttons in headers/footers wrap and shrink instead of overflowing */
+    .modal-btns { flex-wrap: wrap; }
+    .modal-btns .btn { min-width: 100px; }
+    .btn { font-size: 12px; padding: 9px 12px; }
+    .btn-generate { font-size: 13px; }
+
+    /* Sliders and number inputs stay full-width and tappable */
+    input[type="range"] { height: 22px; }
+    input[type="number"], input[type="text"], input[type="password"] { font-size: 16px; } /* 16px prevents iOS auto-zoom on focus */
   }
 
   /* THEME VARIATIONS */
@@ -678,7 +724,9 @@
 <!-- HEADER -->
 <header>
   <div style="display:flex;align-items:center;gap:18px;">
-    <div class="logo">ℛØℬᎥ Graphics<span>AI · METADATA · GENERATOR</span></div>
+    <button class="mobile-menu-btn btn-settings" onclick="toggleMobileSidebar()" title="Menu" style="padding:8px 12px;">☰</button>
+    <img id="customLogoImg" src="" alt="" style="display:none;width:34px;height:34px;border-radius:8px;object-fit:contain;">
+    <div class="logo" id="logoTextWrap">ℛØℬᎥ Graphics<span>AI · METADATA · GENERATOR</span></div>
     <div class="view-switch" style="display:flex;gap:4px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:4px;">
       <button class="view-switch-btn active" id="viewBtnMeta" onclick="switchView('meta')">🏷️ Metadata</button>
       <button class="view-switch-btn" id="viewBtnPrompt" onclick="switchView('prompt')">✨ Image-to-Prompt</button>
@@ -687,12 +735,15 @@
   <div class="header-right">
     <div class="status-dot" title="AI Ready"></div>
     <span id="epsServerStatus" style="font-size:11px;font-family:'Space Mono',monospace;display:none;">🟢 EPS Server</span>
+    <button class="btn-users" onclick="openTour()" style="background:rgba(0,255,136,0.1);color:#00ff88;border:1px solid rgba(0,255,136,0.3);">❓ Tour</button>
     <button class="btn-users" onclick="openSupportModal()" style="background:rgba(255,193,7,0.12);color:#ffc107;border:1px solid rgba(255,193,7,0.3);">💛 Support / Pay</button>
     <button class="btn-users" onclick="openHistoryModal()" style="background:rgba(0,229,255,0.1);color:var(--accent);border:1px solid rgba(0,229,255,0.3);">🕘 History</button>
     <button class="btn-settings" onclick="openSettingsModal()">⚙ Settings</button>
-    <button class="btn-api" onclick="openModal()">🔑 API Key</button>
+    <button class="btn-api" onclick="openModal()" title="ধাপ ১: এখানে ক্লিক করে আপনার AI provider-এর API key দিন">🔑 API Key</button>
   </div>
 </header>
+
+<div class="mobile-sidebar-overlay" id="mobileSidebarOverlay" onclick="closeMobileSidebar()"></div>
 
 <style>
   .view-switch-btn {
@@ -816,7 +867,7 @@
     </div>
 
     <!-- Drop Zone -->
-    <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragleave="this.classList.remove('dragover')">
+    <div class="dropzone" id="dropzone" title="ধাপ ২: এখানে ক্লিক করুন বা ছবি drag করে আপলোড করুন" onclick="document.getElementById('fileInput').click()" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragleave="this.classList.remove('dragover')">
       <input type="file" id="fileInput" multiple accept="image/*,.eps,.pdf,.ai" onchange="handleFiles(this.files)">
       <div id="previewGrid" class="preview-grid" style="width:100%;padding:12px;display:none;"></div>
       <!-- Upload Loading Overlay -->
@@ -843,7 +894,7 @@
     <div class="action-bar">
       <button class="btn btn-clear" onclick="clearAll()">🗑 Clear All</button>
       <button class="btn btn-pause" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
-      <button class="btn btn-generate" id="generateBtn" onclick="startGeneration()">✦ Generate (<span id="fileCount">0</span>)</button>
+      <button class="btn btn-generate" id="generateBtn" onclick="startGeneration()" title="ধাপ ৩: AI দিয়ে metadata generate করুন">✦ Generate (<span id="fileCount">0</span>)</button>
       <button class="btn btn-export" onclick="exportCSV()">⬇ Export CSV</button>
       <button class="btn btn-pause" onclick="openHistoryModal()">🕘 History</button>
     </div>
@@ -1062,12 +1113,40 @@
   <div class="modal" style="width:700px;max-width:96vw;">
     <h2>🕘 Generation History</h2>
     <p>আগের সব session-এর generated metadata। যেকোনো session থেকে আবার CSV বা ZIP ডাউনলোড করুন।</p>
+
+    <!-- ANALYTICS SUMMARY -->
+    <div id="historyAnalytics" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:14px 0;"></div>
+    <div id="historyMonthlyBreakdown" style="margin-bottom:14px;"></div>
+
     <div id="historyList">
       <div class="history-empty">⏳ কোনো history নেই। প্রথমে কিছু generate করুন।</div>
     </div>
     <div class="modal-btns">
       <button class="btn btn-clear" style="flex:1;justify-content:center;" onclick="clearHistory()">🗑 Clear History</button>
       <button class="btn btn-pause" style="flex:1;justify-content:center;" onclick="document.getElementById('historyModalBg').classList.remove('show')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ONBOARDING TOUR MODAL -->
+<div class="modal-bg" id="tourModalBg">
+  <div class="modal" style="max-width:460px;">
+    <div id="tourStepContent"></div>
+    <div class="modal-btns" style="margin-top:18px;">
+      <button class="btn btn-clear" onclick="skipTour()">Skip</button>
+      <button class="btn btn-generate" style="flex:1;justify-content:center;" onclick="nextTourStep()" id="tourNextBtn">পরের ধাপ →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FIRST-TIME ONBOARDING TOUR ===== -->
+<div class="modal-bg" id="onboardingBg" style="z-index:9999;">
+  <div class="modal" style="max-width:480px;">
+    <div id="onboardingStepContent"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;">
+      <button class="btn btn-clear" style="font-size:12px;padding:8px 14px;" onclick="skipOnboarding()">Skip Tour</button>
+      <div style="display:flex;gap:6px;" id="onboardingDots"></div>
+      <button class="btn btn-generate" style="font-size:13px;padding:8px 18px;" id="onboardingNextBtn" onclick="onboardingNext()">পরবর্তী →</button>
     </div>
   </div>
 </div>
@@ -1133,6 +1212,34 @@
       <div class="theme-card" onclick="setTheme('black',this)">
         <div class="tc-icon">⬛</div>Black
       </div>
+      <div class="theme-card" onclick="setTheme('custom',this)" id="customThemeCard">
+        <div class="tc-icon">🎨</div>Custom Brand
+      </div>
+    </div>
+
+    <!-- BRANDING: custom accent color pickers — set your own brand colors here and they persist -->
+    <div id="customColorWrap" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:8px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;font-family:'Space Mono',monospace;">YOUR BRAND COLORS</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">Primary Accent
+          <input type="color" id="customAccent1" value="#00e5ff" oninput="applyCustomColors()">
+        </label>
+        <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">Secondary Accent
+          <input type="color" id="customAccent2" value="#ff6b00" oninput="applyCustomColors()">
+        </label>
+        <label style="font-size:12px;display:flex;flex-direction:column;gap:4px;">Background
+          <input type="color" id="customBg" value="#050a12" oninput="applyCustomColors()">
+        </label>
+      </div>
+    </div>
+
+    <!-- BRANDING: logo upload — replaces the sidebar logo + browser favicon, saved locally -->
+    <div class="modal-section-label" style="margin-top:18px;">Your Logo</div>
+    <input type="file" id="logoUploadInput" accept="image/*" onchange="handleLogoUpload(event)" style="font-size:12px;">
+    <div style="font-size:11px;color:var(--muted);margin-top:4px;">PNG/SVG recommended, square shape works best. Saves automatically.</div>
+    <div id="logoPreviewWrap" style="margin-top:8px;display:none;align-items:center;gap:10px;">
+      <img id="logoPreviewImg" style="width:40px;height:40px;border-radius:8px;object-fit:contain;background:var(--bg2);">
+      <button class="btn btn-clear" style="padding:6px 12px;font-size:12px;" onclick="clearCustomLogo()">🗑 Remove Logo</button>
     </div>
 
     <div class="modal-section-label">Output Filename</div>
@@ -1160,6 +1267,7 @@
     <div style="font-size:11px;color:var(--muted);margin-top:4px;">More workers = faster processing for large batches. Higher values may hit rate limits.</div>
 
     <div class="modal-section-label">Miscellaneous</div>
+    <button class="btn btn-export" style="width:100%;justify-content:center;font-size:12px;padding:10px;margin-bottom:10px;" onclick="restartOnboarding()">🧭 Onboarding Tour আবার দেখুন</button>
     <div class="toggle-wrap">
       <span class="toggle-label">Show file processing animation</span>
       <div class="toggle on" id="animToggle" onclick="this.classList.toggle('on')"></div>
@@ -1319,7 +1427,69 @@ function saveToHistory(sessionResults) {
 
 function openHistoryModal() {
   renderHistoryList();
+  renderHistoryAnalytics();
   document.getElementById('historyModalBg').classList.add('show');
+}
+
+// ===== HISTORY ANALYTICS — totals, platform breakdown, monthly trend =====
+function renderHistoryAnalytics() {
+  const wrap = document.getElementById('historyAnalytics');
+  const monthWrap = document.getElementById('historyMonthlyBreakdown');
+  if (!wrap || !monthWrap) return;
+
+  if (sessionHistory.length === 0) {
+    wrap.innerHTML = '';
+    monthWrap.innerHTML = '';
+    return;
+  }
+
+  const totalSessions = sessionHistory.length;
+  const totalImages = sessionHistory.reduce((s, h) => s + h.count, 0);
+  const totalFailed = sessionHistory.reduce((s, h) => s + (h.failedCount || 0), 0);
+  const totalSuccess = totalImages - totalFailed;
+  const successRate = totalImages > 0 ? Math.round((totalSuccess / totalImages) * 100) : 0;
+
+  const card = (label, val) => `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;">
+      <div style="font-size:20px;font-weight:700;color:var(--accent);">${val}</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:2px;">${label}</div>
+    </div>`;
+  wrap.innerHTML =
+    card('Sessions', totalSessions) +
+    card('Total Images', totalImages) +
+    card('Success Rate', successRate + '%') +
+    card('Failed', totalFailed);
+
+  // Platform breakdown
+  const platformCounts = {};
+  sessionHistory.forEach(h => { platformCounts[h.platform || 'general'] = (platformCounts[h.platform || 'general'] || 0) + h.count; });
+  const platformRows = Object.entries(platformCounts).sort((a,b) => b[1]-a[1])
+    .map(([p, c]) => `<span class="cat-badge" style="margin:2px;">${p}: ${c}</span>`).join('');
+
+  // Monthly breakdown (by month parsed from session.id timestamp)
+  const monthCounts = {};
+  sessionHistory.forEach(h => {
+    const d = new Date(h.id);
+    const key = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+    monthCounts[key] = (monthCounts[key] || 0) + h.count;
+  });
+  const monthEntries = Object.entries(monthCounts).reverse();
+  const maxMonth = Math.max(1, ...monthEntries.map(e => e[1]));
+  const monthBars = monthEntries.map(([m, c]) => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <span style="width:70px;font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;">${m}</span>
+      <div style="flex:1;background:var(--bg2);border-radius:4px;height:14px;overflow:hidden;">
+        <div style="width:${Math.round((c/maxMonth)*100)}%;height:100%;background:var(--accent);"></div>
+      </div>
+      <span style="font-size:11px;width:28px;text-align:right;">${c}</span>
+    </div>`).join('');
+
+  monthWrap.innerHTML = `
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:'Space Mono',monospace;">PLATFORM BREAKDOWN</div>
+    <div style="margin-bottom:12px;">${platformRows}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:'Space Mono',monospace;">MONTHLY ACTIVITY</div>
+    ${monthBars}
+  `;
 }
 
 function clearHistory() {
@@ -1327,6 +1497,7 @@ function clearHistory() {
   sessionHistory = [];
   localStorage.removeItem('robig_history');
   renderHistoryList();
+  renderHistoryAnalytics();
   showToast('🗑 History cleared!');
 }
 
@@ -1488,20 +1659,159 @@ function setTheme(name, el) {
   el.classList.add('active');
   document.body.className = name === 'default' ? '' : 'theme-' + name;
   localStorage.setItem('robig_theme', name);
+  const customWrap = document.getElementById('customColorWrap');
+  if (customWrap) customWrap.style.display = (name === 'custom') ? 'block' : 'none';
+  if (name === 'custom') applyCustomColors();
+}
+
+// ===== CUSTOM BRAND COLORS — set once, persists across sessions =====
+function applyCustomColors() {
+  const a1 = document.getElementById('customAccent1')?.value || '#00e5ff';
+  const a2 = document.getElementById('customAccent2')?.value || '#ff6b00';
+  const bg = document.getElementById('customBg')?.value || '#050a12';
+  document.documentElement.style.setProperty('--accent', a1);
+  document.documentElement.style.setProperty('--accent2', a2);
+  document.documentElement.style.setProperty('--bg', bg);
+  document.documentElement.style.setProperty('--glow', `0 0 20px ${a1}4d`);
+  localStorage.setItem('robig_custom_colors', JSON.stringify({ a1, a2, bg }));
+}
+function loadCustomColors() {
+  const saved = JSON.parse(localStorage.getItem('robig_custom_colors') || 'null');
+  if (saved) {
+    if (document.getElementById('customAccent1')) document.getElementById('customAccent1').value = saved.a1;
+    if (document.getElementById('customAccent2')) document.getElementById('customAccent2').value = saved.a2;
+    if (document.getElementById('customBg')) document.getElementById('customBg').value = saved.bg;
+  }
+}
+
+// ===== CUSTOM LOGO — replaces sidebar text logo + browser favicon =====
+function handleLogoUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const dataUrl = ev.target.result;
+    localStorage.setItem('robig_custom_logo', dataUrl);
+    applyCustomLogo(dataUrl);
+    showToast('✅ Logo সেট হয়েছে!');
+  };
+  reader.readAsDataURL(file);
+}
+function applyCustomLogo(dataUrl) {
+  const img = document.getElementById('customLogoImg');
+  const textWrap = document.getElementById('logoTextWrap');
+  const favicon = document.getElementById('faviconLink');
+  const previewWrap = document.getElementById('logoPreviewWrap');
+  const previewImg = document.getElementById('logoPreviewImg');
+  if (img) { img.src = dataUrl; img.style.display = 'block'; }
+  if (textWrap) textWrap.style.display = 'none';
+  if (favicon) favicon.href = dataUrl;
+  if (previewWrap) previewWrap.style.display = 'flex';
+  if (previewImg) previewImg.src = dataUrl;
+}
+function clearCustomLogo() {
+  localStorage.removeItem('robig_custom_logo');
+  const img = document.getElementById('customLogoImg');
+  const textWrap = document.getElementById('logoTextWrap');
+  const previewWrap = document.getElementById('logoPreviewWrap');
+  if (img) img.style.display = 'none';
+  if (textWrap) textWrap.style.display = 'block';
+  if (previewWrap) previewWrap.style.display = 'none';
+  showToast('🗑 Logo সরানো হয়েছে — default logo ফিরে এসেছে');
 }
 
 // Restore theme
 (function(){
   const t = localStorage.getItem('robig_theme');
+  const themes = ['default','purple','green','orange','red','gold','white','black','custom'];
   if (t && t !== 'default') {
-    document.body.className = 'theme-' + t;
+    document.body.className = (t === 'custom') ? '' : 'theme-' + t;
     const cards = document.querySelectorAll('.theme-card');
-    const themes = ['default','purple','green','orange','red','gold','white','black'];
     const idx = themes.indexOf(t);
     if (idx >= 0) { cards.forEach(c => c.classList.remove('active')); cards[idx]?.classList.add('active'); }
+    if (t === 'custom') {
+      const wrap = document.getElementById('customColorWrap');
+      if (wrap) wrap.style.display = 'block';
+      loadCustomColors();
+      applyCustomColors();
+    }
   }
+  // Restore custom logo if previously uploaded
+  const savedLogo = localStorage.getItem('robig_custom_logo');
+  if (savedLogo) applyCustomLogo(savedLogo);
 })();
 
+// ===== FIRST-TIME ONBOARDING TOUR =====
+const ONBOARDING_STEPS = [
+  {
+    icon: '🔑',
+    title: 'ধাপ ১: API Key সেট করুন',
+    body: 'প্রথমে উপরের 🔑 API Key বাটনে ক্লিক করে Google Gemini (বা OpenAI/OpenRouter/Grok) এর একটা ফ্রি API key দিন। key একবার দিলে browser-এ সেইভ থাকবে, বারবার দিতে হবে না।',
+  },
+  {
+    icon: '📁',
+    title: 'ধাপ ২: ছবি আপলোড করুন',
+    body: 'Dropzone-এ ক্লিক করে বা সরাসরি ছবি drag করে একসাথে অনেকগুলো image/EPS/AI ফাইল আপলোড করতে পারবেন (১০০+ ছবি একসাথে চলবে)।',
+  },
+  {
+    icon: '✦',
+    title: 'ধাপ ৩: Generate করুন',
+    body: '"Generate" বাটনে ক্লিক করলেই AI প্রতিটা ছবির জন্য title, description, ও keyword তৈরি করে দেবে। কোনো ছবি fail হলে নিজে থেকেই auto-retry হবে — কিছু করতে হবে না।',
+  },
+  {
+    icon: '⬇️',
+    title: 'ধাপ ৪: ডাউনলোড করুন',
+    body: 'কাজ শেষ হলে CSV, ZIP (metadata-embedded ছবিসহ), বা rename করা ফাইল ডাউনলোড করতে পারবেন। "Auto Download CSV" toggle অন রাখলে এটাও automatic হয়ে যাবে।',
+  },
+];
+let onboardingIdx = 0;
+
+function renderOnboardingStep() {
+  const s = ONBOARDING_STEPS[onboardingIdx];
+  const content = document.getElementById('onboardingStepContent');
+  if (!content) return;
+  content.innerHTML = `
+    <div style="text-align:center;font-size:40px;margin-bottom:6px;">${s.icon}</div>
+    <h2 style="text-align:center;">${s.title}</h2>
+    <p style="text-align:center;margin-top:8px;">${s.body}</p>
+  `;
+  const dots = document.getElementById('onboardingDots');
+  if (dots) {
+    dots.innerHTML = ONBOARDING_STEPS.map((_, i) =>
+      `<span style="width:7px;height:7px;border-radius:50%;background:${i === onboardingIdx ? 'var(--accent)' : 'var(--border)'};display:inline-block;"></span>`
+    ).join('');
+  }
+  const nextBtn = document.getElementById('onboardingNextBtn');
+  if (nextBtn) nextBtn.textContent = (onboardingIdx === ONBOARDING_STEPS.length - 1) ? '✓ শুরু করি' : 'পরবর্তী →';
+}
+
+function onboardingNext() {
+  if (onboardingIdx < ONBOARDING_STEPS.length - 1) {
+    onboardingIdx++;
+    renderOnboardingStep();
+  } else {
+    finishOnboarding();
+  }
+}
+function skipOnboarding() { finishOnboarding(); }
+function finishOnboarding() {
+  document.getElementById('onboardingBg')?.classList.remove('show');
+  localStorage.setItem('robig_onboarded', '1');
+}
+function maybeShowOnboarding() {
+  if (!localStorage.getItem('robig_onboarded')) {
+    onboardingIdx = 0;
+    renderOnboardingStep();
+    document.getElementById('onboardingBg')?.classList.add('show');
+  }
+}
+// Allow re-launching the tour anytime from Settings
+function restartOnboarding() {
+  document.getElementById('settingsModalBg')?.classList.remove('show');
+  onboardingIdx = 0;
+  renderOnboardingStep();
+  document.getElementById('onboardingBg')?.classList.add('show');
+}
 // ===== MODELS =====
 const MODELS = {
   gemini: [
@@ -4050,6 +4360,55 @@ function openModal() {
   updateModalKey();
 }
 function closeModal() { document.getElementById('modalBg').classList.remove('show'); }
+
+// ===== ONBOARDING TOUR (4 steps, shown once automatically) =====
+const TOUR_STEPS = [
+  { icon: '🔑', title: '১. API Key দিন', body: 'উপরে ডান পাশে "🔑 API Key" বাটনে ক্লিক করে আপনার Gemini / OpenAI / অন্য কোনো provider-এর API key বসান। এটা শুধু আপনার browser-এ save হয়, কোনো server-এ যায় না — চাইলে একসাথে একাধিক key-ও save রাখতে পারবেন।' },
+  { icon: '📁', title: '২. ছবি Upload করুন', body: 'নিচের dropzone-এ ছবি টেনে আনুন বা ক্লিক করে select করুন। একসাথে অনেক ছবি (১০০+) দিলেও সমস্যা নেই।' },
+  { icon: '✨', title: '৩. Generate চাপুন', body: '"Generate Metadata" বাটনে ক্লিক করলে AI প্রতিটা ছবির জন্য Title, Description, Keywords বানিয়ে দেবে। কোনো ছবি fail হলে নিজে থেকেই auto-retry হয়ে যায়, কিছু করতে হবে না।' },
+  { icon: '⬇️', title: '৪. Download করুন', body: 'কাজ শেষে CSV, ZIP, বা rename করা ফাইল — যা প্রয়োজন নিচের বাটন থেকে এক ক্লিকে ডাউনলোড করুন। "Auto Download CSV" toggle অন রাখলে শেষ হলে নিজেই CSV ডাউনলোড হয়ে যাবে।' },
+];
+let tourIdx = 0;
+function renderTourStep() {
+  const s = TOUR_STEPS[tourIdx];
+  document.getElementById('tourStepContent').innerHTML = `
+    <div style="text-align:center;font-size:42px;margin-bottom:8px;">${s.icon}</div>
+    <h2 style="text-align:center;">${s.title}</h2>
+    <p style="text-align:center;color:var(--muted);margin-top:6px;">${s.body}</p>
+    <div style="text-align:center;margin-top:12px;font-size:12px;color:var(--muted);font-family:'Space Mono',monospace;">ধাপ ${tourIdx + 1} / ${TOUR_STEPS.length}</div>
+  `;
+  document.getElementById('tourNextBtn').textContent = (tourIdx === TOUR_STEPS.length - 1) ? '✅ শুরু করি' : 'পরের ধাপ →';
+}
+function openTour() {
+  tourIdx = 0;
+  renderTourStep();
+  document.getElementById('tourModalBg').classList.add('show');
+}
+function nextTourStep() {
+  if (tourIdx < TOUR_STEPS.length - 1) { tourIdx++; renderTourStep(); }
+  else skipTour();
+}
+function skipTour() {
+  document.getElementById('tourModalBg').classList.remove('show');
+  localStorage.setItem('robig_tour_seen', '1');
+}
+// Auto-show once for first-time visitors only
+(function maybeShowTourOnFirstVisit() {
+  if (!localStorage.getItem('robig_tour_seen')) {
+    setTimeout(openTour, 700);
+  }
+})();
+
+// ===== MOBILE SIDEBAR DRAWER =====
+function toggleMobileSidebar() {
+  const opening = !document.querySelector('.sidebar.mobile-open');
+  document.querySelectorAll('.sidebar').forEach(s => s.classList.toggle('mobile-open', opening));
+  document.getElementById('mobileSidebarOverlay').classList.toggle('show', opening);
+}
+function closeMobileSidebar() {
+  document.querySelectorAll('.sidebar').forEach(s => s.classList.remove('mobile-open'));
+  document.getElementById('mobileSidebarOverlay').classList.remove('show');
+}
 function updateModalKey() {
   const p = document.getElementById('modalProvider').value;
   // Keep the sidebar's main provider dropdown in sync with whatever
@@ -4191,6 +4550,26 @@ function isRateLimitError(msg) {
          m.includes('insufficient_quota');
 }
 
+// Invalid / expired / unauthorized key errors — DIFFERENT from rate-limit
+// errors. Previously rotation only triggered on rate-limit errors, so an
+// invalid key (typo, revoked, expired, wrong provider) would just fail
+// outright forever, even with other valid keys sitting in the saved list —
+// forcing a manual "Use" click. Now both error types trigger rotation.
+function isInvalidKeyError(msg) {
+  if (!msg) return false;
+  const m = String(msg).toLowerCase();
+  return m.includes('api key not valid') || m.includes('api_key_invalid') ||
+         m.includes('invalid api key') || m.includes('invalid_api_key') ||
+         m.includes('unauthorized') || m.includes('401') ||
+         m.includes('permission denied') || m.includes('permission_denied') ||
+         m.includes('forbidden') || m.includes('403') ||
+         m.includes('authentication') || m.includes('incorrect api key') ||
+         m.includes('invalid_request_error') || m.includes('invalid key');
+}
+function isRotatableError(msg) {
+  return isRateLimitError(msg) || isInvalidKeyError(msg);
+}
+
 // Rotates apiKeys[provider] to the next key in the saved list (cycling).
 // Returns true if it actually switched to a different key, false if there
 // is no other saved key available to rotate to.
@@ -4233,10 +4612,16 @@ async function callAIWithRotation(provider, base64, mimeType, prompt, textContex
       return await callAI(provider, key, base64, mimeType, prompt, textContext);
     } catch (err) {
       lastErr = err;
-      if (isRateLimitError(err.message)) {
+      if (isRotatableError(err.message)) {
         if (rotateApiKey(provider, key)) {
-          showToast(`🔁 ${provider} key limit শেষ হয়েছে — পরের saved key দিয়ে চালিয়ে যাচ্ছি…`);
+          const reason = isInvalidKeyError(err.message) ? 'invalid/expired হয়ে গেছে' : 'limit শেষ হয়েছে';
+          showToast(`🔁 ${provider} key ${reason} — পরের saved key দিয়ে চালিয়ে যাচ্ছি…`);
           continue;
+        }
+        if (isInvalidKeyError(err.message)) {
+          // No other key to fall back to and this key is simply invalid —
+          // retrying it won't help, so fail immediately instead of waiting.
+          throw err;
         }
         // No other saved key to rotate to — this is usually a transient
         // per-minute limit, so wait briefly and retry the same key once
@@ -4872,6 +5257,9 @@ function downloadAllGeneratedPromptsCSV() {
   if (providerEl) providerEl.addEventListener('change', updateBtnIndicator);
   updateBtnIndicator();
 })();
+
+// Show first-time onboarding tour (only once per browser, unless replayed from Settings)
+maybeShowOnboarding();
 </script>
 </body>
 </html>
