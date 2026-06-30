@@ -738,6 +738,7 @@
     <button class="btn-users" onclick="openTour()" style="background:rgba(0,255,136,0.1);color:#00ff88;border:1px solid rgba(0,255,136,0.3);">❓ Tour</button>
     <button class="btn-users" onclick="openSupportModal()" style="background:rgba(255,193,7,0.12);color:#ffc107;border:1px solid rgba(255,193,7,0.3);">💛 Support / Pay</button>
     <button class="btn-users" onclick="openHistoryModal()" style="background:rgba(0,229,255,0.1);color:var(--accent);border:1px solid rgba(0,229,255,0.3);">🕘 History</button>
+    <button class="btn-settings" id="quickThemeToggle" onclick="toggleQuickLightDark()" title="Light/Dark mode টগল করুন">🌙</button>
     <button class="btn-settings" onclick="openSettingsModal()">⚙ Settings</button>
     <button class="btn-api" onclick="openModal()" title="ধাপ ১: এখানে ক্লিক করে আপনার AI provider-এর API key দিন">🔑 API Key</button>
   </div>
@@ -894,9 +895,15 @@
     <div class="action-bar">
       <button class="btn btn-clear" onclick="clearAll()">🗑 Clear All</button>
       <button class="btn btn-pause" id="pauseBtn" onclick="togglePause()">⏸ Pause</button>
-      <button class="btn btn-generate" id="generateBtn" onclick="startGeneration()" title="ধাপ ৩: AI দিয়ে metadata generate করুন">✦ Generate (<span id="fileCount">0</span>)</button>
+      <button class="btn btn-generate" id="generateBtn" onclick="startGeneration()" title="ধাপ ৩: AI দিয়ে metadata generate করুন (shortcut: Ctrl+Enter)">✦ Generate (<span id="fileCount">0</span>)</button>
       <button class="btn btn-export" onclick="exportCSV()">⬇ Export CSV</button>
       <button class="btn btn-pause" onclick="openHistoryModal()">🕘 History</button>
+    </div>
+
+    <!-- Cost Estimate (approximate, client-side calculation) -->
+    <div id="costEstimateBar" style="display:none;margin-top:8px;padding:8px 12px;background:var(--card);border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;">
+      <span>💰 আনুমানিক খরচ এই session-এ: <strong id="costEstimateVal" style="color:var(--accent);">$0.0000</strong></span>
+      <button class="btn btn-clear" style="padding:3px 8px;font-size:10px;" onclick="resetCostEstimate()">Reset</button>
     </div>
 
     <!-- Retry Failed Banner -->
@@ -906,6 +913,18 @@
         <div class="retry-banner-sub">শুধু failed ছবিগুলো আবার generate করুন। সফল ছবিগুলো একসাথে CSV-তে থাকবে।</div>
       </div>
       <button class="btn-retry-failed" onclick="autoRetryUntilDone()">🔄 Retry Failed (Auto)</button>
+    </div>
+
+    <!-- Resume/Recovery Banner: shown if a previous session got interrupted (tab closed/crashed mid-batch) -->
+    <div class="retry-banner" id="recoveryBanner" style="display:none;background:rgba(255,180,0,0.08);border-color:rgba(255,180,0,0.3);">
+      <div>
+        <div class="retry-banner-text">💾 আগের একটা session অসমাপ্ত অবস্থায় বন্ধ হয়ে গিয়েছিল</div>
+        <div class="retry-banner-sub" id="recoverySub"></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn-retry-failed" onclick="recoverInProgressResults()">📥 সফল ফলাফলগুলো উদ্ধার করুন</button>
+        <button class="btn btn-clear" style="padding:8px 14px;font-size:12px;" onclick="dismissRecoveryBanner()">✕ বাতিল</button>
+      </div>
     </div>
 
     <!-- Progress -->
@@ -1117,6 +1136,7 @@
     <!-- ANALYTICS SUMMARY -->
     <div id="historyAnalytics" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:14px 0;"></div>
     <div id="historyMonthlyBreakdown" style="margin-bottom:14px;"></div>
+    <div id="keywordFrequencyPanel" style="margin-bottom:14px;"></div>
 
     <div id="historyList">
       <div class="history-empty">⏳ কোনো history নেই। প্রথমে কিছু generate করুন।</div>
@@ -1266,6 +1286,11 @@
     </div>
     <div style="font-size:11px;color:var(--muted);margin-top:4px;">More workers = faster processing for large batches. Higher values may hit rate limits.</div>
 
+    <div class="modal-section-label">Security</div>
+    <div id="keyLockStatusWrap" style="font-size:11px;color:var(--muted);margin-bottom:8px;"></div>
+    <button class="btn btn-export" id="keyLockBtn" style="width:100%;justify-content:center;font-size:12px;padding:10px;margin-bottom:6px;" onclick="toggleKeyLockUI()">🔒 Saved API Keys লক করুন (passphrase)</button>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:10px;">⚠️ এটা একটা সাধারণ obfuscation, শক্তিশালী encryption না। Passphrase ভুলে গেলে saved key গুলো ফিরে পাওয়া যাবে না — সাবধানে রাখুন।</div>
+
     <div class="modal-section-label">Miscellaneous</div>
     <button class="btn btn-export" style="width:100%;justify-content:center;font-size:12px;padding:10px;margin-bottom:10px;" onclick="restartOnboarding()">🧭 Onboarding Tour আবার দেখুন</button>
     <div class="toggle-wrap">
@@ -1359,7 +1384,92 @@ let generating = false;
 let paused = false;
 let currentPlatform = 'general';
 let poppedInKeys = new Set(); // tracks which preview thumbnails already played their entrance animation
-let apiKeys = JSON.parse(localStorage.getItem('robig_keys') || '{}');
+let apiKeys = loadApiKeysFromStorage();
+let apiKeyLists = loadApiKeyListsFromStorage();
+
+// ===== OPTIONAL PASSPHRASE LOCK FOR SAVED API KEYS =====
+// This is a lightweight, synchronous obfuscation cipher (NOT AES/military
+// grade — real async crypto would require restructuring the app's init
+// order). It's meant to stop a casual person glancing at your browser's
+// localStorage from reading your raw keys, not to defend against a
+// determined attacker. Clearly labeled as such in the Settings UI.
+function simpleCipher(text, passphrase) {
+  if (!passphrase) return text;
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    out += String.fromCharCode(text.charCodeAt(i) ^ passphrase.charCodeAt(i % passphrase.length));
+  }
+  return btoa(unescape(encodeURIComponent(out)));
+}
+function simpleDecipher(b64, passphrase) {
+  if (!passphrase) return b64;
+  try {
+    const text = decodeURIComponent(escape(atob(b64)));
+    let out = '';
+    for (let i = 0; i < text.length; i++) {
+      out += String.fromCharCode(text.charCodeAt(i) ^ passphrase.charCodeAt(i % passphrase.length));
+    }
+    return out;
+  } catch (e) { return null; }
+}
+function isKeyLockEnabled() { return localStorage.getItem('robig_keys_locked') === '1'; }
+
+function loadApiKeysFromStorage() {
+  if (isKeyLockEnabled()) return {}; // stays empty until unlockSavedKeys() runs
+  return JSON.parse(localStorage.getItem('robig_keys') || '{}');
+}
+function loadApiKeyListsFromStorage() {
+  if (isKeyLockEnabled()) return {};
+  return JSON.parse(localStorage.getItem('robig_key_list') || '{}');
+}
+
+function enableKeyLock() {
+  const pass = prompt('🔒 একটা passphrase সেট করুন (এটা ভুলে গেলে saved key গুলো আর ফিরে পাওয়া যাবে না, সাবধানে রাখুন):');
+  if (!pass) return;
+  const confirmPass = prompt('আবার লিখুন passphrase-টা (confirm):');
+  if (pass !== confirmPass) { showToast('⚠️ দুটো passphrase মেলেনি, আবার চেষ্টা করুন'); return; }
+  const blob = simpleCipher(JSON.stringify({ apiKeys, apiKeyLists }), pass);
+  localStorage.setItem('robig_keys_enc', blob);
+  localStorage.setItem('robig_keys_locked', '1');
+  localStorage.removeItem('robig_keys');
+  localStorage.removeItem('robig_key_list');
+  showToast('🔒 Saved key list এখন passphrase দিয়ে লক করা হলো');
+}
+function disableKeyLock() {
+  const pass = prompt('🔓 Unlock করতে passphrase দিন:');
+  if (!pass) return;
+  const blob = localStorage.getItem('robig_keys_enc');
+  const decrypted = simpleDecipher(blob, pass);
+  if (!decrypted) { showToast('⚠️ ভুল passphrase'); return; }
+  try {
+    const data = JSON.parse(decrypted);
+    apiKeys = data.apiKeys || {};
+    apiKeyLists = data.apiKeyLists || {};
+    localStorage.setItem('robig_keys', JSON.stringify(apiKeys));
+    localStorage.setItem('robig_key_list', JSON.stringify(apiKeyLists));
+    localStorage.removeItem('robig_keys_enc');
+    localStorage.removeItem('robig_keys_locked');
+    showToast('🔓 Lock সরানো হয়েছে — keys আবার সরাসরি accessible');
+  } catch (e) { showToast('⚠️ Unlock ব্যর্থ হয়েছে'); }
+}
+function unlockSavedKeys() {
+  const pass = prompt('🔒 আপনার saved API keys লক করা আছে। Passphrase দিন:');
+  if (!pass) return;
+  const blob = localStorage.getItem('robig_keys_enc');
+  const decrypted = simpleDecipher(blob, pass);
+  if (!decrypted) { showToast('⚠️ ভুল passphrase, আবার চেষ্টা করুন'); return; }
+  try {
+    const data = JSON.parse(decrypted);
+    apiKeys = data.apiKeys || {};
+    apiKeyLists = data.apiKeyLists || {};
+    showToast('🔓 Unlock সফল হয়েছে!');
+    if (typeof renderKeyList === 'function') renderKeyList();
+    const btn = document.querySelector('.btn-api');
+    const providerEl = document.getElementById('aiProvider');
+    if (btn && providerEl) btn.textContent = apiKeys[providerEl.value] ? '🔑 API Key ✅' : '🔑 API Key';
+  } catch (e) { showToast('⚠️ Unlock ব্যর্থ হয়েছে'); }
+}
+
 let parallelWorkers = 8; // bumped from 5 — faster default throughput
 
 // Keeps the sidebar "Batch Size" slider and the Settings "Parallel Workers"
@@ -1428,7 +1538,52 @@ function saveToHistory(sessionResults) {
 function openHistoryModal() {
   renderHistoryList();
   renderHistoryAnalytics();
+  renderKeywordFrequency();
   document.getElementById('historyModalBg').classList.add('show');
+}
+
+// ===== KEYWORD FREQUENCY ANALYSIS =====
+// Surfaces which keywords/title-words are over-repeated across the whole
+// portfolio so the user can spot lack of variety (a common reason stock
+// reviewers reject or downrank submissions) and an over-reliance on a
+// narrow set of terms.
+function renderKeywordFrequency() {
+  const panel = document.getElementById('keywordFrequencyPanel');
+  if (!panel) return;
+  const allItems = sessionHistory.flatMap(h => h.items || []).filter(it => !it.error);
+  if (allItems.length === 0) { panel.innerHTML = ''; return; }
+
+  const kwCounts = {};
+  allItems.forEach(it => {
+    (it.keywords || []).forEach(k => {
+      const norm = String(k).trim().toLowerCase();
+      if (!norm) return;
+      kwCounts[norm] = (kwCounts[norm] || 0) + 1;
+    });
+  });
+  const totalImages = allItems.length;
+  const sorted = Object.entries(kwCounts).sort((a, b) => b[1] - a[1]);
+  const top15 = sorted.slice(0, 15);
+  const maxCount = top15.length ? top15[0][1] : 1;
+  const overused = sorted.filter(([, c]) => c / totalImages > 0.5); // appears in >50% of images
+
+  const rows = top15.map(([k, c]) => {
+    const pct = Math.round((c / totalImages) * 100);
+    const warn = pct > 50;
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <span style="width:110px;font-size:11px;${warn ? 'color:var(--red);' : ''}overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${k}">${k}${warn ? ' ⚠' : ''}</span>
+      <div style="flex:1;background:var(--bg2);border-radius:4px;height:13px;overflow:hidden;">
+        <div style="width:${Math.round((c/maxCount)*100)}%;height:100%;background:${warn ? 'var(--red)' : 'var(--accent)'};"></div>
+      </div>
+      <span style="font-size:10px;width:60px;text-align:right;color:var(--muted);">${c}× (${pct}%)</span>
+    </div>`;
+  }).join('');
+
+  panel.innerHTML = `
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:'Space Mono',monospace;">TOP KEYWORDS (সব history মিলিয়ে, ${totalImages}টি ছবি)</div>
+    ${rows}
+    ${overused.length > 0 ? `<div style="font-size:11px;color:var(--red);margin-top:8px;">⚠ ${overused.length}টি keyword ৫০%+ ছবিতে repeat হচ্ছে — portfolio-তে variety বাড়ানো ভালো হবে।</div>` : ''}
+  `;
 }
 
 // ===== HISTORY ANALYTICS — totals, platform breakdown, monthly trend =====
@@ -1644,6 +1799,7 @@ function resetStats() {
 // ===== SETTINGS MODAL =====
 function openSettingsModal() {
   document.getElementById('outputFilenameInput').value = outputFilename;
+  renderKeyLockStatus();
   document.getElementById('settingsModalBg').classList.add('show');
 }
 function closeSettingsModal() { document.getElementById('settingsModalBg').classList.remove('show'); }
@@ -1662,6 +1818,37 @@ function setTheme(name, el) {
   const customWrap = document.getElementById('customColorWrap');
   if (customWrap) customWrap.style.display = (name === 'custom') ? 'block' : 'none';
   if (name === 'custom') applyCustomColors();
+  updateQuickThemeIcon();
+}
+
+// ===== QUICK LIGHT/DARK TOGGLE =====
+// The existing "White" theme already IS a light mode (light backgrounds,
+// dark text) — this just gives it a one-click header shortcut instead of
+// requiring a trip into Settings > Color Theme every time. It remembers
+// whichever dark-flavored theme was active before switching to light, so
+// switching back to dark restores your actual previous theme/colors
+// instead of always resetting to the plain default.
+function updateQuickThemeIcon() {
+  const btn = document.getElementById('quickThemeToggle');
+  if (!btn) return;
+  const isLight = document.body.classList.contains('theme-white');
+  btn.textContent = isLight ? '☀️' : '🌙';
+}
+function toggleQuickLightDark() {
+  const isLight = document.body.classList.contains('theme-white');
+  if (isLight) {
+    const prevDark = localStorage.getItem('robig_theme_before_light') || 'default';
+    const cards = document.querySelectorAll('.theme-card');
+    const themes = ['default','purple','green','orange','red','gold','white','black','custom'];
+    const idx = themes.indexOf(prevDark);
+    setTheme(prevDark, cards[idx >= 0 ? idx : 0]);
+  } else {
+    const current = localStorage.getItem('robig_theme') || 'default';
+    if (current !== 'white') localStorage.setItem('robig_theme_before_light', current);
+    const cards = document.querySelectorAll('.theme-card');
+    const themes = ['default','purple','green','orange','red','gold','white','black','custom'];
+    setTheme('white', cards[themes.indexOf('white')]);
+  }
 }
 
 // ===== CUSTOM BRAND COLORS — set once, persists across sessions =====
@@ -1739,9 +1926,39 @@ function clearCustomLogo() {
   // Restore custom logo if previously uploaded
   const savedLogo = localStorage.getItem('robig_custom_logo');
   if (savedLogo) applyCustomLogo(savedLogo);
+  updateQuickThemeIcon();
 })();
 
-// ===== FIRST-TIME ONBOARDING TOUR =====
+// ===== KEYBOARD SHORTCUTS =====
+document.addEventListener('keydown', (e) => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  const isTyping = tag === 'input' || tag === 'textarea' || e.target.isContentEditable;
+
+  // Ctrl/Cmd + Enter — start generation (works even while typing in most fields,
+  // since this is the expected "submit" gesture)
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    const btn = document.getElementById('generateBtn');
+    if (btn && !btn.disabled) startGeneration();
+    return;
+  }
+
+  if (isTyping) return; // don't hijack other keys while typing in a field
+
+  // Escape — close whichever modal is open
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-bg.show').forEach(m => m.classList.remove('show'));
+    return;
+  }
+
+  // Ctrl/Cmd + K — open API key modal (common "open settings/key" convention)
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openModal();
+    return;
+  }
+});
+
 const ONBOARDING_STEPS = [
   {
     icon: '🔑',
@@ -2679,6 +2896,7 @@ async function startGeneration() {
         document.getElementById('filterBar').style.display = 'flex';
       }
       updateProgress(Math.round((completed / total) * 100), `Processing ${completed} of ${total}…`);
+      autosaveInProgressResults();
     }
   }
 
@@ -2718,6 +2936,7 @@ async function startGeneration() {
     renderPreviews();
     document.getElementById('fileCount').textContent = '0';
     showToast(`✦ সব ${results.length}টি সফল!`);
+    clearInProgressSnapshot();
     if (isAutoCsvOn() && results.length > 0) {
       setTimeout(() => exportCSV(), 400);
     }
@@ -2925,66 +3144,43 @@ Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
     general:     'Optimize for ALL major stock platforms (Adobe Stock, Shutterstock, Getty, Freepik), with special attention to Adobe Stock\'s ranking algorithm since it rewards precise keyword targeting most heavily.'
   };
 
-  // ── Adobe Stock: use the Ultimate SEO prompt v6 ──────────────────────────
+  // ── Adobe Stock: user-specified exact prompt rules ───────────────────────
   if (platform === 'adobe' || platform === 'general') {
     const adobeCatNum = getAdobeCategoryNum();
-    return `You are an Elite Adobe Stock SEO Expert, Commercial Metadata Strategist, Search Intent Analyst, Semantic SEO Specialist, AI Vision Expert, and Global Stock Marketplace Consultant.
+    return `You are an AI that analyzes uploaded images/files and generates SEO-friendly Adobe Stock metadata.
 
-Your mission is to generate premium Adobe Stock metadata that maximizes discoverability, buyer search intent, semantic relevance, click-through rate (CTR), and long-term download potential while fully complying with Adobe Stock Contributor Guidelines.
+Adobe Stock Metadata Rules
 
-Your goal is NOT simply to write metadata. Your goal is to think like a professional Adobe Stock buyer, SEO expert, and marketplace search algorithm.
+1. Create a unique, natural, SEO-optimized title (50–70 characters).
+2. Put the main keyword at the beginning of the title.
+3. Do not use keyword stuffing or unnecessary words.
+4. Generate exactly 30 highly relevant keywords.
 
-PHASE 1 — IMAGE ANALYSIS
-Carefully analyze the uploaded image, vector, illustration, or AI artwork.
-Identify only what is actually visible.
-Analyze: Main Subject, Secondary Subjects, Objects, Design Style, Artistic Style, Illustration Type, Composition, Perspective, Background, Pattern, Shapes, Colors, Texture, Mood, Emotion (if visually obvious), Industry, Audience, Commercial Usage, Marketing Usage, Business Usage, Print Usage, Digital Usage, Seasonal Relevance, Cultural Relevance.
-Never guess. Never add objects that do not exist.
+Keyword Structure
 
-PHASE 2 — KEYWORD STRATEGY
-Generate EXACTLY ${kwCount} UNIQUE keywords structured as follows:
-• Keywords 1–${Math.round(kwCount*0.2)}: Strongest commercial keywords, highest buyer search intent, highest ranking potential, include approximately 7–10 trending commercial keywords ONLY if relevant
-• Keywords ${Math.round(kwCount*0.2)+1}–${Math.round(kwCount*0.4)}: Core subject keywords, primary SEO keywords, main object keywords
-• Keywords ${Math.round(kwCount*0.4)+1}–${Math.round(kwCount*0.6)}: Semantic SEO keywords, alternative search phrases, industry terminology, design terminology
-• Keywords ${Math.round(kwCount*0.6)+1}–${Math.round(kwCount*0.8)}: Commercial usage, marketing, branding, advertising, print, web, social media, packaging, business
-• Keywords ${Math.round(kwCount*0.8)+1}–${kwCount}: Long-tail keywords, supporting semantic keywords, natural search variations, contextual buyer keywords
+1. Keywords 1–10: Primary keywords (main subject & highest search volume).
+2. Keywords 11–20: Secondary keywords (related objects, style, colors, attributes, composition).
+3. Keywords 21–30: Long-tail keywords, use cases, audience, occasions, and niche search terms.
+4. Remove duplicate, irrelevant, or generic keywords.
+5. Arrange keywords from highest to lowest SEO importance.
+6. Select the most accurate Adobe Stock category. Category number: ${adobeCatNum} (${ADOBE_CATEGORIES[adobeCatNum] || 'Graphic Resources'}).
+7. Create a clean SEO-friendly filename using lowercase letters and hyphens only.
+8. Ensure correct spelling and grammar.
+9. Make every title and keyword list unique for each file.
+10. Optimize all metadata for Adobe Stock search ranking and buyer search intent.
+11. Output only: Filename, Title, Keywords, and Category.
 
-KEYWORD RULES:
-• Generate EXACTLY ${kwCount} keywords
-• Every keyword must be unique — no duplicates
-• No irrelevant keywords, no keyword stuffing, no filler keywords, no misleading keywords
-• Use singular words unless plural is the standard search term
-• Include only keywords visible or directly implied by the asset
-• Every keyword must earn its place and contribute to SEO or buyer intent
-
-TITLE RULES:
-• Maximum ${titleLen} characters
-• Natural English
-• Start with the strongest commercial keyword
-• Clearly describe the asset
-• Human readable, professional, buyer-focused
-• No keyword stuffing
-
-DESCRIPTION RULES:
-• Maximum ${descLen} characters
-• Natural English
-• Describe the subject
-• Mention style
-• Mention commercial usage when appropriate
-• Human readable, SEO friendly
-
-CATEGORY: Select the single most accurate Adobe Stock category. Category number: ${adobeCatNum} (${ADOBE_CATEGORIES[adobeCatNum] || 'Graphic Resources'}).
+Analyze the uploaded image/design carefully — only describe what is actually visible. Never invent objects, colors, or styles that aren't present.
 
 ALSO generate an AI-image-recreation prompt:
 Write a detailed prompt (for Midjourney/DALL-E/Stable Diffusion) that could recreate this exact image. Include: subject, art style, color palette, composition, lighting, mood, rendering technique. This is SEPARATE from the stock metadata.
 
-FINAL QUALITY CHECK — before finalizing, verify:
-✓ Exactly ${kwCount} keywords ✓ No duplicate keywords ✓ No irrelevant keywords ✓ No wasted keyword slots ✓ Strong buyer search intent ✓ Strong commercial relevance ✓ Strong semantic SEO ✓ Natural English ✓ Adobe Stock compliant ✓ Human readable ✓ Upload-ready metadata
-
 Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
 {
-  "title": "title here (max ${titleLen} chars)",
-  "description": "description here (max ${descLen} chars)",
-  "keywords": ["kw1", "kw2", "...exactly ${kwCount} keywords total..."],
+  "filename": "seo-friendly-lowercase-hyphenated-filename",
+  "title": "title here (50-70 characters, main keyword first)",
+  "description": "",
+  "keywords": ["kw1", "kw2", "...exactly 30 keywords total..."],
   "category": "Category Name",
   "category_number": ${adobeCatNum},
   "recreation_prompt": "detailed AI image generation prompt to recreate this exact image"
@@ -3388,6 +3584,10 @@ function renderResult(item, idx) {
       <div class="result-field">
         <div class="result-field-label">Keywords <button class="btn-icon-mini" onclick="copyField(${idx},'keywords')" title="Copy Keywords">📋</button></div>
         <div class="keywords-wrap" id="kw-${idx}">${kwHtml}</div>
+        <div style="display:flex;gap:6px;margin-top:6px;">
+          <input type="text" placeholder="নতুন keyword লিখে Enter চাপুন…" style="flex:1;font-size:11px;padding:5px 8px;" onkeydown="if(event.key==='Enter'){event.preventDefault();addKeywordFromInput(${idx},this);}">
+          <button class="btn-icon-mini" onclick="addKeywordFromInput(${idx}, this.previousElementSibling)" title="Add keyword">➕</button>
+        </div>
       </div>
       ${md.recreation_prompt ? `<div class="result-field" style="background:rgba(255,193,7,0.06);border:1px solid rgba(255,193,7,0.2);border-radius:8px;padding:10px;margin-top:4px;">
         <div class="result-field-label" style="color:#ffc107;">🎨 AI Recreation Prompt (CSV-তে যাবে না) <button class="btn-icon-mini" onclick="copyField(${idx},'recreation_prompt')" title="Copy Recreation Prompt">📋</button></div>
@@ -3431,17 +3631,10 @@ function setRating(idx, stars) {
   showToast(`⭐ ${stars}/5 রেটিং দেওয়া হয়েছে`);
 }
 
-function removeKeyword(idx, kwIdx) {
-  const item = results[idx];
-  if (!item || !item.metadata || !item.metadata.keywords) return;
-  const removed = item.metadata.keywords.splice(kwIdx, 1)[0];
-
-  const kws = item.metadata.keywords;
-  const totalKw = kws.length;
+function buildKeywordHtml(idx, kws) {
   const seenKw = new Set(); const dupSet = new Set();
   kws.forEach(k => { const n = k.toLowerCase().trim(); if (seenKw.has(n)) dupSet.add(n); seenKw.add(n); });
-
-  const kwHtml = kws.map((k, i) => {
+  return kws.map((k, i) => {
     const norm = k.toLowerCase().trim();
     let cls = 'kw';
     if (isBannedKeyword(k)) cls += ' kw-banned';
@@ -3453,19 +3646,44 @@ function removeKeyword(idx, kwIdx) {
       `<span style="opacity:0.35;font-size:10px;margin-left:2px;">✕</span>` +
       `</span>`;
   }).join('');
-
+}
+function refreshKeywordWrap(idx) {
+  const item = results[idx];
+  if (!item || !item.metadata) return;
+  const kws = item.metadata.keywords || [];
   const kwWrap = document.getElementById(`kw-${idx}`);
-  if (kwWrap) kwWrap.innerHTML = kwHtml;
-
+  if (kwWrap) kwWrap.innerHTML = buildKeywordHtml(idx, kws);
   const card = document.getElementById(`result-${idx}`);
   if (card) {
     const metaBar = card.querySelector('.result-meta');
     if (metaBar) {
       const kwSpan = [...metaBar.querySelectorAll('span')].find(s => s.textContent.includes('KW:'));
-      if (kwSpan) kwSpan.innerHTML = `KW: <strong>${totalKw}</strong>`;
+      if (kwSpan) kwSpan.innerHTML = `KW: <strong>${kws.length}</strong>`;
     }
   }
-  showToast(`🗑 "${removed}" বাদ দেওয়া হয়েছে (${totalKw} remaining)`);
+}
+function removeKeyword(idx, kwIdx) {
+  const item = results[idx];
+  if (!item || !item.metadata || !item.metadata.keywords) return;
+  const removed = item.metadata.keywords.splice(kwIdx, 1)[0];
+  refreshKeywordWrap(idx);
+  showToast(`🗑 "${removed}" বাদ দেওয়া হয়েছে (${item.metadata.keywords.length} remaining)`);
+}
+// Manually add a new keyword — typed in the small input box next to each
+// result's keyword list. Previously keywords could only be removed, never
+// added, after AI generation.
+function addKeywordFromInput(idx, inputEl) {
+  const val = (inputEl.value || '').trim();
+  if (!val) return;
+  const item = results[idx];
+  if (!item || !item.metadata) return;
+  if (!item.metadata.keywords) item.metadata.keywords = [];
+  const exists = item.metadata.keywords.some(k => k.toLowerCase().trim() === val.toLowerCase());
+  if (exists) { showToast('ℹ️ এই keyword আগেই আছে'); inputEl.value = ''; return; }
+  item.metadata.keywords.push(val);
+  inputEl.value = '';
+  refreshKeywordWrap(idx);
+  showToast(`✅ "${val}" যুক্ত হয়েছে`);
 }
 
 function saveEditedField(idx, field, el) {
@@ -3803,6 +4021,79 @@ function cleanVecteezyFilename(name, usedNames) {
 
 
 // ===== EXPORT CSV =====
+// ===== RESUME / CRASH RECOVERY =====
+// Saves a lightweight snapshot of completed results (NOT full images —
+// that would blow past localStorage's ~5-10MB quota on large batches)
+// periodically during generation. If the tab is closed/crashes mid-batch,
+// reopening the page offers to recover whatever had already finished
+// instead of silently losing it.
+let lastAutosaveAt = 0;
+function autosaveInProgressResults() {
+  const now = Date.now();
+  if (now - lastAutosaveAt < 2000) return; // throttle — no need to write every single item
+  lastAutosaveAt = now;
+  const successOnly = results.filter(r => r.metadata && !r.metadata.error);
+  if (successOnly.length === 0) return;
+  const snapshot = {
+    savedAt: now,
+    total: files.length + results.length, // rough total at time of save
+    items: successOnly.map(r => ({
+      fileName: r.file.name,
+      metadata: r.metadata,
+      platform: currentPlatform,
+    })),
+  };
+  try {
+    localStorage.setItem('robig_inprogress', JSON.stringify(snapshot));
+  } catch (e) { /* quota exceeded — just skip autosave, not critical */ }
+}
+function clearInProgressSnapshot() {
+  localStorage.removeItem('robig_inprogress');
+}
+function checkForInterruptedSession() {
+  const raw = localStorage.getItem('robig_inprogress');
+  if (!raw) return;
+  try {
+    const snap = JSON.parse(raw);
+    if (!snap.items || snap.items.length === 0) return;
+    const banner = document.getElementById('recoveryBanner');
+    const sub = document.getElementById('recoverySub');
+    if (banner && sub) {
+      const when = new Date(snap.savedAt).toLocaleString('bn-BD');
+      sub.textContent = `${snap.items.length}টি ছবির metadata সফলভাবে তৈরি হয়েছিল (${when})। CSV আকারে ডাউনলোড করতে পারবেন।`;
+      banner.style.display = 'flex';
+    }
+  } catch (e) { localStorage.removeItem('robig_inprogress'); }
+}
+function recoverInProgressResults() {
+  const raw = localStorage.getItem('robig_inprogress');
+  if (!raw) return;
+  try {
+    const snap = JSON.parse(raw);
+    const headers = ['Filename', 'Title', 'Description', 'Keywords'];
+    const rows = snap.items.map(it => [
+      it.fileName,
+      it.metadata.title || '',
+      it.metadata.description || '',
+      (it.metadata.keywords || []).join(', '),
+    ]);
+    const csv = [headers, ...rows].map(row => row.map(csvQ).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'robi-graphics-recovered-results.csv';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`✅ ${snap.items.length}টি উদ্ধারকৃত ফলাফল CSV-তে ডাউনলোড হয়েছে!`);
+    dismissRecoveryBanner();
+  } catch (e) { showToast('⚠️ Recovery data পড়তে সমস্যা হয়েছে'); }
+}
+function dismissRecoveryBanner() {
+  document.getElementById('recoveryBanner').style.display = 'none';
+  clearInProgressSnapshot();
+}
+
 function exportCSV() {
   if (results.length === 0) { showToast('⚠️ No results to export'); return; }
   const csv = buildCSV();
@@ -4220,9 +4511,20 @@ async function downloadRenameZip() {
       const md   = item.metadata;
       btn.textContent = `⏳ ${i+1}/${results.length} processing…`;
 
-      // ── 1. Build SEO filename from title ──
+      // ── 1. Build SEO filename — prefer AI-provided filename field (new Adobe prompt
+      //      generates this directly per Adobe Stock's own naming rules), fall back
+      //      to slugifying the title for platforms/prompts that don't include it ──
       let seoName = '';
-      if (md && md.title && !md.error) {
+      if (md && md.filename && !md.error) {
+        seoName = String(md.filename)
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .trim()
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .slice(0, 80);
+      }
+      if ((!seoName || seoName.length < 5) && md && md.title && !md.error) {
         seoName = md.title
           .toLowerCase()
           .replace(/[^a-z0-9\s-]/g, '')
@@ -4449,8 +4751,29 @@ function saveApiKey() {
 // ===== MULTIPLE SAVED API KEYS PER PROVIDER =====
 // Lets the user store several keys per provider (e.g. to switch when one
 // hits a rate limit) instead of only ever having one active key.
-let apiKeyLists = JSON.parse(localStorage.getItem('robig_key_list') || '{}');
+// (apiKeyLists is declared near the top via loadApiKeyListsFromStorage(),
+// which also respects the optional passphrase lock.)
 
+function toggleKeyLockUI() {
+  if (isKeyLockEnabled()) {
+    disableKeyLock();
+  } else {
+    enableKeyLock();
+  }
+  renderKeyLockStatus();
+}
+function renderKeyLockStatus() {
+  const wrap = document.getElementById('keyLockStatusWrap');
+  const btn = document.getElementById('keyLockBtn');
+  if (!wrap || !btn) return;
+  if (isKeyLockEnabled()) {
+    wrap.textContent = '🔒 বর্তমানে lock করা আছে';
+    btn.textContent = '🔓 Lock সরিয়ে ফেলুন';
+  } else {
+    wrap.textContent = '🔓 বর্তমানে lock করা নেই';
+    btn.textContent = '🔒 Saved API Keys লক করুন (passphrase)';
+  }
+}
 function maskKey(k) {
   if (k.length <= 8) return k.slice(0,2) + '••••' + k.slice(-2);
   return k.slice(0,4) + '••••••' + k.slice(-4);
@@ -4595,6 +4918,46 @@ function rotateApiKey(provider, currentKey) {
 // Drop-in replacement for callAI() that automatically rotates through all
 // saved keys for this provider if the current one hits a rate-limit/quota
 // error, instead of immediately failing the whole item.
+// ===== COST ESTIMATE (approximate) =====
+// We don't have a server to read exact provider billing/usage from, so
+// this estimates tokens via the standard ~4-chars-per-token heuristic plus
+// a fixed per-image token cost, then multiplies by rough public per-1M
+// token pricing. Labeled "আনুমানিক" (approximate) everywhere it's shown —
+// this is a guide for relative cost comparison, not an exact invoice.
+const COST_PER_1M_TOKENS = { // { input, output } USD, rough public pricing as of late 2025/2026
+  gemini:     { input: 0.10, output: 0.40 },
+  openai:     { input: 0.15, output: 0.60 },
+  openrouter: { input: 0.20, output: 0.60 },
+  mistral:    { input: 0.15, output: 0.45 },
+  groq:       { input: 0.05, output: 0.08 },
+  grok:       { input: 0.20, output: 0.60 },
+};
+const IMAGE_TOKEN_ESTIMATE = 800; // rough fixed cost for a compressed ~1200px image in most vision APIs
+let sessionCostUSD = 0;
+
+function estimateCallCost(provider, promptText, hasImage) {
+  const pricing = COST_PER_1M_TOKENS[provider] || COST_PER_1M_TOKENS.gemini;
+  const inputTokens = Math.ceil((promptText || '').length / 4) + (hasImage ? IMAGE_TOKEN_ESTIMATE : 0);
+  const outputTokens = 250; // rough average size of a generated title+description+keywords JSON
+  const cost = (inputTokens / 1e6) * pricing.input + (outputTokens / 1e6) * pricing.output;
+  return cost;
+}
+function addToCostEstimate(provider, promptText, hasImage) {
+  sessionCostUSD += estimateCallCost(provider, promptText, hasImage);
+  const bar = document.getElementById('costEstimateBar');
+  const val = document.getElementById('costEstimateVal');
+  if (bar && val) {
+    bar.style.display = 'flex';
+    val.textContent = '$' + sessionCostUSD.toFixed(4);
+  }
+}
+function resetCostEstimate() {
+  sessionCostUSD = 0;
+  const val = document.getElementById('costEstimateVal');
+  if (val) val.textContent = '$0.0000';
+  showToast('💰 Cost counter reset হয়েছে');
+}
+
 async function callAIWithRotation(provider, base64, mimeType, prompt, textContext) {
   const triedKeys = new Set();
   let lastErr;
@@ -4609,7 +4972,9 @@ async function callAIWithRotation(provider, base64, mimeType, prompt, textContex
     triedKeys.add(key);
     await rpmGate(provider); // pace requests so we don't blast past the real per-minute quota
     try {
-      return await callAI(provider, key, base64, mimeType, prompt, textContext);
+      const result = await callAI(provider, key, base64, mimeType, prompt, textContext);
+      addToCostEstimate(provider, prompt, !!base64);
+      return result;
     } catch (err) {
       lastErr = err;
       if (isRotatableError(err.message)) {
@@ -5260,6 +5625,10 @@ function downloadAllGeneratedPromptsCSV() {
 
 // Show first-time onboarding tour (only once per browser, unless replayed from Settings)
 maybeShowOnboarding();
+checkForInterruptedSession();
+if (isKeyLockEnabled()) {
+  setTimeout(() => { unlockSavedKeys(); }, 300); // slight delay so the page renders first
+}
 </script>
 </body>
 </html>
