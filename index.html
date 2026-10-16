@@ -697,7 +697,8 @@
       <h3 style="margin-bottom:6px;">🛡️ Admin Login</h3>
       <p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Admin password দিয়ে লগইন করুন</p>
       <input type="password" id="adminPasswordInput" placeholder="Admin password" style="width:100%;padding:12px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;margin-bottom:10px;outline:none;" onkeydown="if(event.key==='Enter')tryAdminLogin()">
-      <div id="adminLoginError" style="display:none;color:var(--red);font-size:12px;margin-bottom:10px;"></div>
+      <div id="adminLoginError" style="display:none;color:var(--red);font-size:12px;margin-bottom:10px;line-height:1.5;"></div>
+      <button id="adminLoginSetupBtn" class="btn btn-pause" style="display:none;width:100%;justify-content:center;margin-bottom:10px;font-size:12px;" onclick="document.getElementById('adminLoginPrompt').style.display='none';openGistSetup();">⚙️ GitHub Token দিয়ে Gist connect করুন</button>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-generate" style="flex:1;justify-content:center;" onclick="tryAdminLogin()">Login</button>
         <button class="btn btn-pause" style="flex:1;justify-content:center;" onclick="document.getElementById('adminLoginPrompt').style.display='none'">Cancel</button>
@@ -707,7 +708,7 @@
 </div>
 
 <!-- ===== GIST SETUP MODAL (first-time admin setup) ===== -->
-<div class="modal-bg" id="gistSetupModalBg" style="z-index:99998;">
+<div class="modal-bg" id="gistSetupModalBg" style="z-index:100001;">
   <div class="modal" style="width:560px;max-width:96vw;">
     <h2 style="margin-bottom:6px;">⚙️ GitHub Gist Setup</h2>
     <p style="color:var(--muted);font-size:13px;margin-bottom:20px;">একবার setup করুন — তারপর যেকোনো device থেকে codes কাজ করবে, আর HTML আপলোড করতে হবে না।</p>
@@ -1184,6 +1185,16 @@
   <div class="modal" style="width:700px;max-width:96vw;">
     <h2>🕘 Generation History</h2>
     <p>আগের সব session-এর generated metadata। যেকোনো session থেকে আবার CSV বা ZIP ডাউনলোড করুন।</p>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:10px 0;">
+      <span style="font-size:13px;font-weight:700;">🧹 Auto Delete:</span>
+      <select id="histAutoDel" onchange="setHistAutoDel(this.value)" style="flex:1;min-width:200px;">
+        <option value="session">নতুন করে ট্যাব/ব্রাউজার খুললে আগের history মুছে যাবে</option>
+        <option value="1h">১ ঘণ্টা পর মুছে যাবে</option>
+        <option value="24h">২৪ ঘণ্টা পর মুছে যাবে</option>
+        <option value="7d">৭ দিন পর মুছে যাবে</option>
+        <option value="off">Auto delete বন্ধ (নিজে Clear করব)</option>
+      </select>
+    </div>
     <div id="historyList">
       <div class="history-empty">⏳ কোনো history নেই। প্রথমে কিছু generate করুন।</div>
     </div>
@@ -1627,18 +1638,29 @@ async function markCodeAsUsedInGist(code) {
   }
 }
 
-const APP_VERSION = 'v20-gist-1'; // ← এই version বদলালে সবার পুরনো session reset হবে
+const APP_VERSION = 'v21-2026-10-16'; // এটা হাতে বদলালেও সবার login reset হবে (HTML-only বদলালে এটা বদলান)
+// Auto build signature: computed from this page's own code, so ANY code update changes it by itself —
+// no need to remember to edit a version number. Same file → same signature on every load.
+function computeBuildId() {
+  let t = '';
+  document.querySelectorAll('script:not([src])').forEach(e => { t += (e.textContent || '').length + ':' + simpleHash(e.textContent || '') + ';'; });
+  return APP_VERSION + '-' + simpleHash(t).toString(36);
+}
 
 async function checkAccessGate() {
   const overlay = document.getElementById('accessGateOverlay');
 
   // Version check — নতুন version deploy হলে পুরনো unlock session clear করো
+  // ফাইল আপডেট হলেই (নতুন build) → সবাইকে আবার লগইন করতে হবে + পুরনো history মুছে যাবে।
+  // API key, settings, Gist config, theme — এগুলো থাকবে।
+  const BUILD_ID = computeBuildId();
   const savedVersion = localStorage.getItem('robig_app_version');
-  if (savedVersion !== APP_VERSION) {
-    localStorage.removeItem('robig_unlocked');
-    localStorage.removeItem('robig_unlock_code');
-    localStorage.removeItem('robig_unlock_time');
-    localStorage.setItem('robig_app_version', APP_VERSION);
+  if (savedVersion !== BUILD_ID) {
+    ['robig_unlocked','robig_unlock_code','robig_unlock_time','robig_admin_session'].forEach(k => localStorage.removeItem(k));
+    try { sessionHistory = []; } catch (e) {}
+    localStorage.removeItem('robig_history');
+    localStorage.setItem('robig_app_version', BUILD_ID);
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
   }
 
   // Pre-fetch codes in background to warm cache
@@ -1647,11 +1669,112 @@ async function checkAccessGate() {
   const unlocked = localStorage.getItem('robig_unlocked') === 'true';
   if (unlocked) {
     overlay.style.display = 'none';
-    if (isAdminSession()) document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
+    if (isAdminSession()) { document.querySelectorAll('.admin-only').forEach(el => el.style.display = ''); verifyAdminSessionLock(); }
   } else {
     overlay.style.display = 'flex';
     document.body.style.overflow = 'hidden';
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  SINGLE-DEVICE ADMIN LOCK
+//  Admin শুধু একটি ডিভাইস/ব্রাউজারে লগইন করতে পারবে। অন্য সব ডিভাইসে
+//  password ঠিক থাকলেও Admin লগইন হবে না — তারা শুধু ইউজার code দিয়ে আনলক করবে।
+//  Lock টা Gist-এ (robi-admin-lock.lock ফাইল) থাকে, তাই সব ডিভাইস সেটা দেখতে পায়।
+// ════════════════════════════════════════════════════════════════
+const ADMIN_LOCK_FILE = 'robi-admin-lock.lock';
+async function getDeviceId() {
+  let id = null;
+  try { id = localStorage.getItem('robig_device_id'); } catch (e) {}
+  if (!id) { try { id = await _idbGet('robig_device_id'); } catch (e) {} }
+  if (!id) id = 'dev-' + (window.crypto && crypto.randomUUID ? crypto.randomUUID() : (Math.random().toString(36).slice(2) + Date.now().toString(36)));
+  try { localStorage.setItem('robig_device_id', id); } catch (e) {}
+  _idbSet('robig_device_id', id);
+  return id;
+}
+function effectiveGistId() {
+  const cfg = getGistConfig();
+  return cfg?.gistId || localStorage.getItem('robig_public_gist_id') || HARDCODED_GIST_ID;
+}
+function adminHasToken(gid) {
+  const cfg = getGistConfig();
+  return !!(cfg && cfg.token && cfg.gistId && cfg.gistId === gid);
+}
+async function readAdminLock(gid) {
+  const cfg = getGistConfig();
+  let gist;
+  if (adminHasToken(gid)) {
+    gist = await gistFetch('GET', gid, cfg.token);
+  } else {
+    const res = await fetch(`https://api.github.com/gists/${gid}?t=${Date.now()}`, { headers: { 'Accept': 'application/vnd.github+json' }, cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    gist = await res.json();
+  }
+  const f = gist.files && gist.files[ADMIN_LOCK_FILE];
+  if (!f || !f.content) return null;
+  try { return JSON.parse(f.content); } catch (e) { return null; }
+}
+async function writeAdminLock(cfg, deviceId) {
+  const content = JSON.stringify({ deviceId, since: new Date().toISOString(), browser: (navigator.userAgent || '').slice(0, 90) });
+  await gistFetch('PATCH', cfg.gistId, cfg.token, { files: { [ADMIN_LOCK_FILE]: { content } } });
+}
+async function releaseAdminLock() {
+  const cfg = getGistConfig();
+  if (!cfg?.token || !cfg?.gistId) return false;
+  try { await gistFetch('PATCH', cfg.gistId, cfg.token, { files: { [ADMIN_LOCK_FILE]: null } }); localStorage.removeItem('robig_admin_ok_gist'); return true; }
+  catch (e) { return false; }
+}
+// Decides whether THIS device may be the admin device
+async function acquireAdminLock() {
+  const gid = effectiveGistId();
+  const cfg = getGistConfig();
+  const me = await getDeviceId();
+  const hasToken = adminHasToken(gid);
+  let lock;
+  try { lock = await readAdminLock(gid); }
+  catch (e) {
+    // offline: only a device that was approved before may continue
+    if (localStorage.getItem('robig_admin_ok_gist') === gid) return { ok: true, offline: true };
+    return { ok: false, msg: '❌ Gist-এ পৌঁছানো যাচ্ছে না (ইন্টারনেট/Gist ID চেক করুন)। Admin লগইন করা গেল না।' };
+  }
+  if (lock && lock.deviceId === me) { localStorage.setItem('robig_admin_ok_gist', gid); return { ok: true }; }
+  if (!lock) {
+    if (!hasToken) return { ok: false, needSetup: true, msg: '⚠️ এই ডিভাইসকে Admin ডিভাইস বানাতে হলে আগে GitHub Token দিয়ে Gist connect করতে হবে।' };
+    await writeAdminLock(cfg, me);
+    localStorage.setItem('robig_admin_ok_gist', gid);
+    return { ok: true, claimed: true };
+  }
+  // locked to another device
+  if (!hasToken) return { ok: false, msg: '🔒 Admin অন্য একটি ডিভাইসে লগইন করা আছে। এই ডিভাইস থেকে Admin লগইন করা যাবে না — ইউজার code দিয়ে আনলক করুন।' };
+  const since = lock.since ? new Date(lock.since).toLocaleString() : '';
+  if (confirm('🔒 Admin এখন অন্য একটি ডিভাইসে আছে' + (since ? ' (' + since + ' থেকে)' : '') + '.\n\nআপনার কাছে Gist Token আছে। Admin এই ডিভাইসে সরিয়ে নেবেন? (আগের ডিভাইস থেকে Admin বন্ধ হয়ে যাবে)')) {
+    await writeAdminLock(cfg, me);
+    localStorage.setItem('robig_admin_ok_gist', gid);
+    return { ok: true, moved: true };
+  }
+  return { ok: false, msg: '🔒 Admin অন্য ডিভাইসে আছে — লগইন বাতিল হয়েছে।' };
+}
+// If this browser still holds an admin session but the lock now belongs to another device → remove admin here
+async function verifyAdminSessionLock() {
+  if (!isAdminSession()) return true;
+  try {
+    const gid = effectiveGistId();
+    const lock = await readAdminLock(gid);
+    const me = await getDeviceId();
+    if (lock && lock.deviceId !== me) {
+      localStorage.removeItem('robig_admin_session');
+      localStorage.removeItem('robig_admin_ok_gist');
+      if (localStorage.getItem('robig_unlock_code') === 'ADMIN') {
+        localStorage.removeItem('robig_unlocked'); localStorage.removeItem('robig_unlock_code'); localStorage.removeItem('robig_unlock_time');
+      }
+      document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+      document.getElementById('adminPanelModalBg')?.classList.remove('show');
+      showToast('🔒 Admin এখন অন্য ডিভাইসে — এখানে Admin বন্ধ করা হয়েছে');
+      if (localStorage.getItem('robig_unlocked') !== 'true') { const o = document.getElementById('accessGateOverlay'); if (o) { o.style.display = 'flex'; document.body.style.overflow = 'hidden'; } }
+      return false;
+    }
+  } catch (e) { /* offline → keep session */ }
+  return true;
 }
 
 // ── Admin Login ───────────────────────────────────────────────────
@@ -1663,7 +1786,16 @@ async function tryAdminLogin() {
   const entered = await hashPassword(pwd);
   const correct = await _CORRECT_HASH;
 
+  document.getElementById('adminLoginSetupBtn').style.display = 'none';
   if (entered === correct) {
+    let lockRes;
+    try { lockRes = await acquireAdminLock(); }
+    catch (e) { lockRes = { ok: false, msg: '❌ Admin lock check error: ' + e.message }; }
+    if (!lockRes.ok) {
+      errEl.textContent = lockRes.msg; errEl.style.display = 'block';
+      if (lockRes.needSetup) document.getElementById('adminLoginSetupBtn').style.display = 'flex';
+      return;
+    }
     document.getElementById('adminLoginPrompt').style.display = 'none';
     document.getElementById('adminPasswordInput').value = '';
     localStorage.setItem('robig_admin_session', 'true');
@@ -1672,10 +1804,10 @@ async function tryAdminLogin() {
     document.getElementById('accessGateOverlay').style.display = 'none';
     document.body.style.overflow = '';
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
-    showToast('🛡️ Admin হিসেবে লগইন হয়েছে!');
+    showToast(lockRes.moved ? '🛡️ Admin এই ডিভাইসে সরানো হয়েছে!' : '🛡️ Admin হিসেবে লগইন হয়েছে! (শুধু এই ডিভাইসেই Admin চলবে)');
     openAdminPanel();
   } else {
-    errEl.textContent = `❌ ভুল password। Master Code: ${computeMasterCode()}`;
+    errEl.textContent = '❌ ভুল password।';
     errEl.style.display = 'block';
   }
 }
@@ -1684,7 +1816,11 @@ function isAdminSession() {
   return localStorage.getItem('robig_admin_session') === 'true';
 }
 
-function adminLogout() {
+async function adminLogout() {
+  if (adminHasToken(effectiveGistId()) && confirm('Logout-এর সাথে Admin lock-ও ছেড়ে দেবেন?\n\nOK = অন্য ডিভাইস থেকে Admin লগইন করা যাবে\nCancel = Admin শুধু এই ডিভাইসেই থাকবে (শুধু logout হবে)')) {
+    const done = await releaseAdminLock();
+    showToast(done ? '🔓 Admin lock ছাড়া হয়েছে' : '⚠️ Lock ছাড়া যায়নি');
+  }
   localStorage.removeItem('robig_admin_session');
   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
   document.getElementById('adminPanelModalBg').classList.remove('show');
@@ -1869,6 +2005,7 @@ async function syncFromGist(showMsg = true) {
 }
 
 async function openAdminPanel() {
+  if (!(await verifyAdminSessionLock())) return;
   updateGistStatusUI();
   const codes = getCachedCodes() || [];
   renderAdminCodesList(codes);
@@ -2148,6 +2285,8 @@ function saveToHistory(sessionResults) {
 }
 
 function openHistoryModal() {
+  purgeHistory(false);
+  const sel = document.getElementById('histAutoDel'); if (sel) sel.value = getHistAutoDel();
   renderHistoryList();
   document.getElementById('historyModalBg').classList.add('show');
 }
@@ -2159,6 +2298,52 @@ function clearHistory() {
   renderHistoryList();
   showToast('🗑 History cleared!');
 }
+
+// ===== HISTORY AUTO-DELETE =====
+// Modes: session (default) = previous history is wiped whenever the app is opened in a new tab/browser session,
+//        1h / 24h / 7d   = entries older than that are removed,   off = never delete automatically
+const HIST_MS = { '1h': 3600e3, '24h': 24 * 3600e3, '7d': 7 * 24 * 3600e3 };
+function getHistAutoDel() { try { return localStorage.getItem('robig_hist_autodel') || 'session'; } catch (e) { return 'session'; } }
+function saveHistoryNow() {
+  try {
+    if (sessionHistory.length) localStorage.setItem('robig_history', JSON.stringify(sessionHistory));
+    else localStorage.removeItem('robig_history');
+  } catch (e) {}
+}
+function purgeHistory(newSession) {
+  const mode = getHistAutoDel();
+  const before = sessionHistory.length;
+  if (mode === 'session') {
+    if (newSession) sessionHistory = [];            // everything stored belongs to an earlier session
+  } else if (HIST_MS[mode]) {
+    const cutoff = Date.now() - HIST_MS[mode];
+    sessionHistory = sessionHistory.filter(h => (h.id || 0) >= cutoff);
+  }
+  if (sessionHistory.length !== before) saveHistoryNow();
+  return before - sessionHistory.length;
+}
+function setHistAutoDel(v) {
+  try { localStorage.setItem('robig_hist_autodel', v); } catch (e) {}
+  const n = purgeHistory(false);
+  renderHistoryList();
+  showToast(v === 'off' ? '✅ Auto delete বন্ধ' : '✅ Auto delete চালু' + (n ? ' — ' + n + 'টি পুরনো history মুছে গেছে' : ''));
+}
+(function initHistoryAutoDelete() {
+  // 1) one-time cleanup of all the old history that already piled up
+  try {
+    if (!localStorage.getItem('robig_hist_cleanup_v1')) {
+      sessionHistory = []; localStorage.removeItem('robig_history');
+      localStorage.setItem('robig_hist_cleanup_v1', '1');
+    }
+  } catch (e) {}
+  // 2) is this a fresh tab/browser session?
+  let fresh = true;
+  try { fresh = !sessionStorage.getItem('robig_hist_session'); sessionStorage.setItem('robig_hist_session', '1'); } catch (e) {}
+  purgeHistory(fresh);
+  // 3) keep the dropdown in sync + time-based modes are re-checked every minute
+  const sel = document.getElementById('histAutoDel'); if (sel) sel.value = getHistAutoDel();
+  setInterval(() => { if (purgeHistory(false) && document.getElementById('historyModalBg').classList.contains('show')) renderHistoryList(); }, 60000);
+})();
 
 function renderHistoryList() {
   const container = document.getElementById('historyList');
