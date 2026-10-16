@@ -726,18 +726,31 @@
 
     <!-- Step 2 -->
     <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;">
-      <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent2);letter-spacing:2px;margin-bottom:10px;">STEP 2 — Token ও Gist ID দিন</div>
+      <div style="font-family:'Space Mono',monospace;font-size:11px;color:var(--accent2);letter-spacing:2px;margin-bottom:10px;">STEP 2 — Token, নাম ও Gist ID</div>
       <div style="margin-bottom:10px;">
         <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">GitHub Personal Access Token</label>
         <input type="password" id="gistTokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="width:100%;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'Space Mono',monospace;outline:none;">
       </div>
-      <div>
-        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">Gist ID <span style="font-size:11px;">(প্রথমবার খালি রাখুন — auto তৈরি হবে)</span></label>
-        <input type="text" id="gistIdInput" placeholder="auto-create করতে খালি রাখুন" style="width:100%;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'Space Mono',monospace;outline:none;">
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">Gist-এর নাম <span style="font-size:11px;">(যেকোনো নাম দিতে পারেন — নতুন Gist তৈরির সময় এই নামে হবে)</span></label>
+        <input type="text" id="gistNameInput" placeholder="যেমন: My Studio Codes" style="width:100%;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'Space Mono',monospace;outline:none;">
       </div>
+      <div style="margin-bottom:10px;">
+        <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:5px;">Gist ID বা Gist লিংক <span style="font-size:11px;">(আগের Gist-এ connect করতে হলে দিন, নতুন বানাতে হলে খালি রাখুন)</span></label>
+        <input type="text" id="gistIdInput" placeholder="ID বা https://gist.github.com/.../ID" style="width:100%;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'Space Mono',monospace;outline:none;">
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin-bottom:10px;cursor:pointer;">
+        <input type="checkbox" id="gistCopyCodesChk" checked> বর্তমান codes গুলো নতুন Gist-এ কপি করুন (নতুন বানালে)
+      </label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-pause" style="flex:1;justify-content:center;font-size:12px;" onclick="listMyGists()">🔍 আমার Gist লিস্ট দেখুন (ID খুঁজে পেতে)</button>
+        <button class="btn btn-generate" style="flex:1;justify-content:center;font-size:12px;background:linear-gradient(135deg,#7c3aed,#5b21b6);" onclick="saveGistConfig(true)">🆕 নতুন Gist তৈরি করুন</button>
+      </div>
+      <div id="gistListBox" style="display:none;margin-top:10px;max-height:190px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;"></div>
     </div>
 
     <div id="gistSetupError" style="display:none;background:rgba(255,45,85,0.08);border:1px solid rgba(255,45,85,0.3);border-radius:8px;padding:10px;font-size:13px;color:var(--red);margin-bottom:12px;"></div>
+    <div id="gistSetupInfo" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;line-height:1.6;"></div>
     <div id="gistSetupSuccess" style="display:none;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.3);border-radius:8px;padding:10px;font-size:13px;color:var(--green);margin-bottom:12px;"></div>
 
     <div class="modal-btns">
@@ -824,7 +837,7 @@
 <!-- HEADER -->
 <header>
   <div style="display:flex;align-items:center;gap:18px;">
-    <div class="logo" id="mainLogo">ℛØℬᎥ Graphics<span>AI · METADATA · GENERATOR</span></div>
+    <div class="logo">ℛØℬᎥ Graphics<span>AI · METADATA · GENERATOR</span></div>
     <div class="view-switch" style="display:flex;gap:4px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:4px;">
       <button class="view-switch-btn active" id="viewBtnMeta" onclick="switchView('meta')">🏷️ Metadata</button>
       <button class="view-switch-btn" id="viewBtnPrompt" onclick="switchView('prompt')">✨ Image-to-Prompt</button>
@@ -836,9 +849,6 @@
     <button class="btn-users" onclick="openSupportModal()" style="background:rgba(255,193,7,0.12);color:#ffc107;border:1px solid rgba(255,193,7,0.3);">💛 Support / Pay</button>
     <button class="btn-users" onclick="openHistoryModal()" style="background:rgba(0,229,255,0.1);color:var(--accent);border:1px solid rgba(0,229,255,0.3);">🕘 History</button>
     <button class="btn-users" onclick="openUsersModal()">👥 Users</button>
-    <input type="file" id="logoFileInput" accept="image/*" style="display:none;" onchange="handleLogoUpload(this)">
-    <button class="btn-settings" onclick="document.getElementById('logoFileInput').click()" title="নিজের Logo upload করুন">🖼 Logo</button>
-    <button class="btn-settings" id="logoRemoveBtn" onclick="removeCustomLogo()" style="display:none;" title="Logo মুছে আগের লেখা logo ফিরিয়ে আনুন">✕</button>
     <button class="btn-settings" onclick="openSettingsModal()">⚙ Settings</button>
     <button class="btn-api" onclick="openModal()">🔑 API Key</button>
     <button class="admin-only" id="adminHeaderBtn" onclick="openAdminPanel()" style="display:none;background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;border:none;cursor:pointer;padding:11px 22px;border-radius:10px;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;letter-spacing:1px;transition:all 0.2s;">🛡️ Admin</button>
@@ -846,8 +856,6 @@
 </header>
 
 <style>
-  .logo-img { height: 42px; max-width: 220px; object-fit: contain; display: block; filter: drop-shadow(0 0 8px rgba(0,229,255,0.35)); }
-  .logo.has-img span { margin-top: 2px; }
   .view-switch-btn {
     padding: 8px 16px; border-radius: 7px; border: none; background: transparent;
     color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer;
@@ -890,29 +898,29 @@
       <div class="sidebar-label">Metadata</div>
       <div class="toggle-wrap">
         <span class="toggle-label">Auto Download CSV</span>
-        <div class="toggle on" id="csvToggle" onclick="this.classList.toggle('on')"></div>
+        <div class="toggle on" id="csvToggle" onclick="this.classList.toggle('on')" title="চালু থাকলে generation শেষে CSV নিজে ডাউনলোড হবে"></div>
       </div>
       <div class="toggle-wrap">
         <span class="toggle-label">Category in CSV</span>
-        <div class="toggle on" id="catToggle" onclick="this.classList.toggle('on')"></div>
+        <div class="toggle on" id="catToggle" onclick="this.classList.toggle('on')" title="চালু থাকলে CSV-তে Category কলাম থাকবে"></div>
       </div>
       <div class="slider-wrap" style="margin-top:10px;">
         <div class="slider-header"><span>Title Length</span><span id="titleVal">60 chars</span></div>
-        <input type="range" min="30" max="200" value="60" oninput="document.getElementById('titleVal').textContent=this.value+' chars'">
+        <input type="range" id="titleSlider" min="30" max="200" value="60" oninput="document.getElementById('titleVal').textContent=this.value+' chars'">
       </div>
       <div class="slider-wrap" style="margin-top:10px;">
         <div class="slider-header"><span>Description Length</span><span id="descVal">150 chars</span></div>
-        <input type="range" min="50" max="500" value="150" oninput="document.getElementById('descVal').textContent=this.value+' chars'">
+        <input type="range" id="descSlider" min="50" max="500" value="150" oninput="document.getElementById('descVal').textContent=this.value+' chars'">
       </div>
       <div class="slider-wrap" style="margin-top:10px;">
         <div class="slider-header"><span>Keywords Count</span><span id="kwVal">30</span></div>
-        <input type="range" min="5" max="50" value="30" oninput="document.getElementById('kwVal').textContent=this.value">
+        <input type="range" id="kwSlider" min="5" max="50" value="30" oninput="document.getElementById('kwVal').textContent=this.value">
       </div>
     </div>
 
     <div class="sidebar-section">
       <div class="sidebar-label">Custom Prompt</div>
-      <select>
+      <select id="customPromptSel">
         <option>Default (Recommended)</option>
         <option>Stock Photo Style</option>
         <option>Vector/Illustration</option>
@@ -1193,7 +1201,7 @@
     <p>Your API key is stored locally in your browser and never sent to any server.</p>
     <div style="margin-bottom:10px;">
       <div style="font-size:12px;color:var(--muted);margin-bottom:5px;font-family:'Space Mono',monospace;">PROVIDER</div>
-      <select id="modalProvider" onchange="updateModalKey()">
+      <select id="modalProvider" onchange="updateModalKey();updateKeyGuide()">
         <option value="gemini">Google Gemini</option>
         <option value="openai">OpenAI</option>
         <option value="openrouter">OpenRouter</option>
@@ -1206,6 +1214,15 @@
       <span id="keyStatus">No key saved</span>
     </div>
     <button class="btn btn-generate" style="width:100%;justify-content:center;margin-top:10px;background:linear-gradient(135deg,#0a3d2e,#0f5c3f);" onclick="addKeyToList()">➕ এই key-টা list-এ যুক্ত করো (একাধিক key রাখতে)</button>
+
+    <div id="keyGuideBox" style="margin-top:14px;border:1px solid var(--border);border-radius:10px;background:var(--panel);padding:12px;">
+      <button class="btn btn-generate" id="createKeyBtn" style="width:100%;justify-content:center;background:linear-gradient(135deg,#1a73e8,#0b57d0);" onclick="openCreateKeyPage()">🆕 API Key তৈরি করুন (Google AI Studio)</button>
+      <details id="keyGuideDetails" open style="margin-top:10px;">
+        <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--accent);">📖 কীভাবে API Key বানাবেন — ধাপে ধাপে গাইডলাইন</summary>
+        <ol id="keyGuideSteps" style="margin:10px 0 0 18px;padding:0;font-size:12.5px;line-height:1.7;color:var(--text);"></ol>
+        <div id="keyGuideNote" style="margin-top:8px;font-size:11.5px;color:var(--muted);line-height:1.5;"></div>
+      </details>
+    </div>
 
     <div style="font-size:12px;color:var(--muted);margin:16px 0 6px;font-family:'Space Mono',monospace;">SAVED KEYS (এই provider-এর জন্য)</div>
     <div id="savedKeysList" style="max-height:180px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding-right:2px;"></div>
@@ -1388,6 +1405,36 @@ const _CORRECT_HASH = (async () => hashPassword('5877162026'))();
 // Admin: Gist setup করার পর এই ID টা এখানে লিখুন (একবারই করতে হবে)
 const HARDCODED_GIST_ID = '4d5dbd5f3322e6c4194681d46665c625'; // ← আপনার Gist ID
 
+// ── Any Gist works: accept a bare ID or a full gist URL, any gist name, any .json file name ──
+function extractGistId(v) {
+  if (!v) return '';
+  const m = String(v).trim().match(/[0-9a-f]{20,40}/i);
+  return m ? m[0].toLowerCase() : '';
+}
+// Prefer the standard file name, otherwise use the first .json file (so a gist created under any name/file works)
+function pickGistFile(gist) {
+  const files = (gist && gist.files) || {};
+  if (files[GIST_FILENAME]) return files[GIST_FILENAME];
+  const k = Object.keys(files).find(n => /\.json$/i.test(n)) || Object.keys(files)[0];
+  return k ? files[k] : null;
+}
+// Admin can share a link like  https://your-site/?gist=GIST_ID  — opening it connects that user's browser to the new gist
+(function applyGistFromUrl() {
+  try {
+    const u = new URL(location.href);
+    const g = extractGistId(u.searchParams.get('gist'));
+    if (g) {
+      if (localStorage.getItem('robig_public_gist_id') !== g) {
+        localStorage.setItem('robig_public_gist_id', g);
+        localStorage.removeItem('robig_codes_cache');      // old gist's codes must not linger
+        localStorage.removeItem('robig_codes_cache_time');
+      }
+      u.searchParams.delete('gist');
+      history.replaceState(null, '', u.pathname + (u.search || '') + u.hash);
+    }
+  } catch (e) {}
+})();
+
 // ── Gist config (saved in localStorage) ──────────────────────────
 function getGistConfig() {
   try { return JSON.parse(localStorage.getItem('robig_gist_config') || 'null'); }
@@ -1425,7 +1472,7 @@ async function readGistCodes(cfg) {
   if (!cfg?.gistId || !cfg?.token) return null;
   try {
     const gist = await gistFetch('GET', cfg.gistId, cfg.token);
-    const raw = gist.files?.[GIST_FILENAME]?.content;
+    const raw = pickGistFile(gist)?.content;
     if (!raw) return [];
     return JSON.parse(raw);
   } catch { return null; }
@@ -1433,7 +1480,13 @@ async function readGistCodes(cfg) {
 
 async function writeGistCodes(cfg, codes) {
   const content = JSON.stringify(codes, null, 2);
-  const body = { files: { [GIST_FILENAME]: { content } } };
+  let fname = GIST_FILENAME;
+  try { // if the connected gist stores codes under another .json file name, update that same file
+    const g = await gistFetch('GET', cfg.gistId, cfg.token);
+    const files = g.files || {};
+    if (!files[GIST_FILENAME]) { const k = Object.keys(files).find(n => /\.json$/i.test(n)); if (k) fname = k; }
+  } catch (e) {}
+  const body = { files: { [fname]: { content } } };
   if (cfg.gistId) {
     await gistFetch('PATCH', cfg.gistId, cfg.token, body);
   } else {
@@ -1478,7 +1531,7 @@ async function fetchAndCacheCodes() {
       });
       if (res.ok) {
         const gist = await res.json();
-        const raw = gist.files?.['robi-graphics-codes.json']?.content;
+        const raw = pickGistFile(gist)?.content;
         if (raw) {
           const codes = JSON.parse(raw);
           setCachedCodes(codes);
@@ -1643,14 +1696,80 @@ function openGistSetup() {
   const cfg = getGistConfig();
   if (cfg?.token) document.getElementById('gistTokenInput').value = cfg.token;
   if (cfg?.gistId) document.getElementById('gistIdInput').value = cfg.gistId;
+  if (cfg?.name) document.getElementById('gistNameInput').value = cfg.name;
+  document.getElementById('gistListBox').style.display = 'none';
+  if (cfg?.gistId) showGistInfo(cfg.gistId); else document.getElementById('gistSetupInfo').style.display = 'none';
   document.getElementById('gistSetupError').style.display = 'none';
   document.getElementById('gistSetupSuccess').style.display = 'none';
   document.getElementById('gistSetupModalBg').classList.add('show');
 }
 
-async function saveGistConfig() {
+function _gistCopy(txt) { navigator.clipboard.writeText(txt).then(() => showToast('📋 Copied!')); }
+function showGistInfo(id) {
+  const box = document.getElementById('gistSetupInfo');
+  const base = (location.protocol === 'file:') ? '(আপনার সাইটের লিংক)' : (location.origin + location.pathname);
+  const userLink = base + '?gist=' + id;
+  const hard = "const HARDCODED_GIST_ID = '" + id + "';";
+  box.innerHTML = '';
+  const add = (title, value, copyVal) => {
+    const d = document.createElement('div'); d.style.marginBottom = '8px';
+    const t = document.createElement('div'); t.style.color = 'var(--muted)'; t.textContent = title;
+    const v = document.createElement('code'); v.style.cssText = 'display:block;word-break:break-all;background:var(--card);padding:6px 8px;border-radius:6px;margin:3px 0;'; v.textContent = value;
+    const b = document.createElement('button'); b.className = 'btn btn-pause'; b.style.cssText = 'font-size:11px;padding:4px 10px;'; b.textContent = '📋 Copy';
+    b.onclick = () => _gistCopy(copyVal || value);
+    d.append(t, v, b); box.appendChild(d);
+  };
+  add('Gist ID:', id);
+  add('Gist লিংক:', 'https://gist.github.com/' + id);
+  add('ইউজারদের পাঠানোর লিংক (এই লিংকে ঢুকলেই তাদের ব্রাউজার এই Gist-এর সাথে connect হবে):', userLink);
+  const tip = document.createElement('div'); tip.style.cssText = 'color:var(--muted);font-size:11px;';
+  tip.textContent = 'ঐচ্ছিক: সব ইউজারের জন্য সবসময় এই Gist চাইলে HTML ফাইলে HARDCODED_GIST_ID লাইনটা এটা দিয়ে বদলে দিন:';
+  box.appendChild(tip);
+  add('', hard);
+  box.style.display = 'block';
+}
+
+async function listMyGists() {
   const token = document.getElementById('gistTokenInput').value.trim();
-  const gistId = document.getElementById('gistIdInput').value.trim();
+  const errEl = document.getElementById('gistSetupError');
+  const list = document.getElementById('gistListBox');
+  errEl.style.display = 'none';
+  if (!token) { errEl.textContent = '❌ আগে Token দিন, তারপর লিস্ট দেখুন।'; errEl.style.display = 'block'; return; }
+  list.style.display = 'block'; list.textContent = '⏳ লোড হচ্ছে…'; list.style.padding = '10px';
+  try {
+    const res = await fetch('https://api.github.com/gists?per_page=100', { headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github+json' } });
+    if (!res.ok) throw new Error('Token কাজ করছে না (HTTP ' + res.status + ')');
+    const gists = await res.json();
+    list.textContent = ''; list.style.padding = '0';
+    if (!gists.length) { list.style.padding = '10px'; list.textContent = 'কোনো Gist পাওয়া যায়নি — "নতুন Gist তৈরি করুন" চাপুন।'; return; }
+    gists.forEach(g => {
+      const names = Object.keys(g.files || {});
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:9px 12px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;';
+      const hasCodes = names.some(n => /\.json$/i.test(n));
+      row.innerHTML = '';
+      const t = document.createElement('div'); t.style.fontWeight = '700'; t.textContent = (g.description || '(নাম নেই)') + (hasCodes ? '  · JSON' : '');
+      const f = document.createElement('div'); f.style.cssText = 'color:var(--muted);font-family:Space Mono,monospace;font-size:10.5px;'; f.textContent = names.join(', ') + ' · ' + g.id;
+      row.append(t, f);
+      row.onmouseenter = () => row.style.background = 'var(--card)';
+      row.onmouseleave = () => row.style.background = '';
+      row.onclick = () => {
+        document.getElementById('gistIdInput').value = g.id;
+        if (g.description) document.getElementById('gistNameInput').value = g.description;
+        list.style.display = 'none';
+        showToast('✅ বেছে নেওয়া হয়েছে — এখন "Save & Connect" চাপুন');
+      };
+      list.appendChild(row);
+    });
+  } catch (e) { list.style.display = 'none'; errEl.textContent = '❌ ' + e.message; errEl.style.display = 'block'; }
+}
+
+async function saveGistConfig(forceNew) {
+  forceNew = (forceNew === true);
+  const token  = document.getElementById('gistTokenInput').value.trim();
+  const gistId = forceNew ? '' : extractGistId(document.getElementById('gistIdInput').value);
+  const gname  = document.getElementById('gistNameInput').value.trim() || 'ROBI Graphics — Access Codes';
+  const copyOld = document.getElementById('gistCopyCodesChk').checked;
   const errEl  = document.getElementById('gistSetupError');
   const okEl   = document.getElementById('gistSetupSuccess');
   const btn    = document.getElementById('gistSetupSaveBtn');
@@ -1662,31 +1781,36 @@ async function saveGistConfig() {
   btn.disabled = true; btn.textContent = '⏳ Connecting…';
 
   try {
-    let cfg = { token, gistId: gistId || null };
+    let cfg = { token, gistId: gistId || null, name: gname };
     // Test token with a GET /user call
     const userRes = await fetch('https://api.github.com/user', {
       headers: { 'Authorization': `token ${token}`, 'Accept': 'application/vnd.github+json' }
     });
-    if (!userRes.ok) throw new Error('Invalid token — GitHub rejected it');
+    if (!userRes.ok) throw new Error('Invalid token — GitHub rejected it (gist scope আছে কিনা দেখুন)');
 
     if (!cfg.gistId) {
-      // Create new Gist with empty codes list
+      // Create a brand-new Gist under ANY name the admin typed
       showToast('⏳ নতুন Gist তৈরি হচ্ছে…');
+      let initial = [];
+      if (copyOld) { const c = getCachedCodes(); if (Array.isArray(c)) initial = c; }
       const body = {
-        description: 'ROBI Graphics — Access Codes (do not delete)',
+        description: gname,
         public: false,
-        files: { [GIST_FILENAME]: { content: JSON.stringify([], null, 2) } }
+        files: { [GIST_FILENAME]: { content: JSON.stringify(initial, null, 2) } }
       };
       const res = await gistFetch('POST', null, token, body);
       cfg.gistId = res.id;
     } else {
-      // Verify Gist is accessible
+      // Verify the chosen Gist is accessible
       await gistFetch('GET', cfg.gistId, token);
     }
 
     saveGistConfig_local(cfg);
+    document.getElementById('gistIdInput').value = cfg.gistId;
     // Store public gistId so other devices can fetch without token
+    const prevPublic = localStorage.getItem('robig_public_gist_id');
     localStorage.setItem('robig_public_gist_id', cfg.gistId);
+    if (prevPublic && prevPublic !== cfg.gistId) { localStorage.removeItem('robig_codes_cache'); localStorage.removeItem('robig_codes_cache_time'); }
     // Sync codes from Gist into cache
     const codes = await readGistCodes(cfg);
     if (codes) setCachedCodes(codes);
@@ -1695,11 +1819,9 @@ async function saveGistConfig() {
     okEl.style.display = 'block';
     btn.disabled = false; btn.textContent = '✅ Save & Connect';
     showToast('✅ GitHub Gist connected!');
-    setTimeout(() => {
-      document.getElementById('gistSetupModalBg').classList.remove('show');
-      updateGistStatusUI();
-      syncFromGist(false);
-    }, 1500);
+    showGistInfo(cfg.gistId);
+    updateGistStatusUI();
+    syncFromGist(false);
   } catch(e) {
     errEl.textContent = `❌ Error: ${e.message}`;
     errEl.style.display = 'block';
@@ -1896,14 +2018,87 @@ let results = [];
 let generating = false;
 let paused = false;
 let currentPlatform = 'general';
-let apiKeys = JSON.parse(localStorage.getItem('robig_keys') || '{}');
-// Migrate old single-key format (plain string) to multi-key array format
-Object.keys(apiKeys).forEach(p => {
-  if (typeof apiKeys[p] === 'string') apiKeys[p] = apiKeys[p] ? [apiKeys[p]] : [];
-  else if (!Array.isArray(apiKeys[p])) apiKeys[p] = [];
+// ===== ROBUST API KEY STORAGE =====
+// Keys are saved in 3 places (localStorage, a backup localStorage slot, IndexedDB)
+// so they never come back empty after reload / storage-full / cleanup.
+function _lsGetJSON(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch(e) { return null; } }
+function _idbOpen() {
+  return new Promise((res, rej) => {
+    try {
+      const r = indexedDB.open('robig_store', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    } catch(e) { rej(e); }
+  });
+}
+async function _idbSet(k, v) {
+  try {
+    const db = await _idbOpen();
+    await new Promise((res, rej) => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+  } catch(e) {}
+}
+async function _idbGet(k) {
+  try {
+    const db = await _idbOpen();
+    return await new Promise((res, rej) => { const tx = db.transaction('kv', 'readonly'); const rq = tx.objectStore('kv').get(k); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); });
+  } catch(e) { return null; }
+}
+function _normalizeKeys(obj) {
+  const out = {};
+  if (!obj || typeof obj !== 'object') return out;
+  Object.keys(obj).forEach(p => {
+    const v = obj[p];
+    if (typeof v === 'string') { if (v) out[p] = [v]; }
+    else if (Array.isArray(v)) { const a = v.filter(x => typeof x === 'string' && x); if (a.length) out[p] = a; }
+  });
+  return out;
+}
+function _hasAnyKey(obj) { return Object.keys(obj || {}).some(p => Array.isArray(obj[p]) && obj[p].length); }
+
+let apiKeys = _normalizeKeys(_lsGetJSON('robig_keys'));
+if (!_hasAnyKey(apiKeys)) apiKeys = _normalizeKeys(_lsGetJSON('robig_keys_bak'));
+let apiKeyIndex = _lsGetJSON('robig_key_index') || {}; // provider -> index of currently-active key
+
+function persistKeys() {
+  const json = JSON.stringify(apiKeys);
+  const idxJson = JSON.stringify(apiKeyIndex);
+  const write = () => {
+    localStorage.setItem('robig_keys', json);
+    localStorage.setItem('robig_keys_bak', json);
+    localStorage.setItem('robig_key_index', idxJson);
+  };
+  try { write(); }
+  catch(e) {
+    // Storage full — free space by dropping bulky history (it holds image previews), then retry
+    try { localStorage.removeItem('robig_history'); if (typeof sessionHistory !== 'undefined') sessionHistory = []; write(); } catch(e2) {}
+  }
+  _idbSet('robig_keys', json);
+  _idbSet('robig_key_index', idxJson);
+}
+// Only write if we actually have keys — never overwrite saved keys with an empty object on page load
+if (_hasAnyKey(apiKeys)) persistKeys();
+// If localStorage was wiped (browser cleanup, file:// quirks), restore keys from IndexedDB
+(async function restoreKeysFromIDB() {
+  if (_hasAnyKey(apiKeys)) return;
+  try {
+    const raw = await _idbGet('robig_keys');
+    const restored = _normalizeKeys(raw ? JSON.parse(raw) : null);
+    if (_hasAnyKey(restored)) {
+      apiKeys = restored;
+      const ri = await _idbGet('robig_key_index');
+      try { if (ri) apiKeyIndex = JSON.parse(ri) || {}; } catch(e) {}
+      persistKeys();
+      if (typeof renderSavedKeysList === 'function' && document.getElementById('savedKeysList')) { try { renderSavedKeysList(); } catch(e) {} }
+    }
+  } catch(e) {}
+})();
+// Ask the browser not to auto-delete this site's storage
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e) {}
+// Keep multiple tabs in sync so one tab never overwrites another tab's keys with stale data
+window.addEventListener('storage', ev => {
+  if (ev.key === 'robig_keys' && ev.newValue) { const n = _normalizeKeys(_lsGetJSON('robig_keys')); if (_hasAnyKey(n)) apiKeys = n; }
 });
-localStorage.setItem('robig_keys', JSON.stringify(apiKeys));
-let apiKeyIndex = JSON.parse(localStorage.getItem('robig_key_index') || '{}'); // provider -> index of currently-active key
 let parallelWorkers = 5;
 let outputFilename = localStorage.getItem('robig_outname') || 'robi-graphics';
 let selectedExt = 'keep'; // extension override
@@ -1923,7 +2118,7 @@ function isBannedKeyword(kw) {
 }
 
 // ===== HISTORY =====
-let sessionHistory = JSON.parse(localStorage.getItem('robig_history') || '[]');
+let sessionHistory = _lsGetJSON('robig_history') || [];
 
 function saveToHistory(sessionResults) {
   const session = {
@@ -1940,7 +2135,7 @@ function saveToHistory(sessionResults) {
       category: r.metadata?.category || '',
       category_number: r.metadata?.category_number || '',
       error: r.metadata?.error || null,
-      previewSrc: r.previewSrc || null,
+      previewSrc: (r.previewSrc && r.previewSrc.length < 15000) ? r.previewSrc : null, // keep storage small so API keys always fit
     }))
   };
   sessionHistory.unshift(session);
@@ -2003,7 +2198,7 @@ function toggleHistorySession(si) {
 
 function buildCSVFromHistory(session) {
   const platform = session.platform || 'general';
-  const catOn = true;
+  const catOn = !(document.getElementById('catToggle') && !document.getElementById('catToggle').classList.contains('on'));
   let headers, rows;
   if (platform === 'adobe') {
     headers = ['Filename','Title','Keywords','Category','Editorial'];
@@ -2221,6 +2416,65 @@ const MODELS = {
   });
 })();
 updateModelList();
+
+// ===== REMEMBER SIDEBAR SETTINGS (auto-saved, auto-restored on every tab open) =====
+const UI_SETTINGS_KEY = 'robig_ui_settings';
+const UI_SLIDERS = ['batchSlider','rpmSlider','titleSlider','descSlider','kwSlider'];
+const UI_TOGGLES = ['csvToggle','catToggle','animToggle','scrollToggle'];
+function collectUISettings() {
+  const o = { sliders:{}, toggles:{} };
+  UI_SLIDERS.forEach(id => { const e = document.getElementById(id); if (e) o.sliders[id] = e.value; });
+  UI_TOGGLES.forEach(id => { const e = document.getElementById(id); if (e) o.toggles[id] = e.classList.contains('on'); });
+  const prov = document.getElementById('aiProvider'); if (prov) o.provider = prov.value;
+  const pill = document.querySelector('.pill.active'); if (pill) o.model = pill.dataset.id || '';
+  const cp = document.getElementById('customPromptSel'); if (cp) o.customPrompt = cp.selectedIndex;
+  o.ext = selectedExt; o.platform = currentPlatform;
+  return o;
+}
+function saveUISettings() {
+  const json = JSON.stringify(collectUISettings());
+  try { localStorage.setItem(UI_SETTINGS_KEY, json); } catch(e) {}
+  _idbSet(UI_SETTINGS_KEY, json);
+}
+function applyUISettings(o) {
+  if (!o || typeof o !== 'object') return;
+  try {
+    if (o.provider) {
+      const prov = document.getElementById('aiProvider');
+      if (prov && prov.value !== o.provider) { prov.value = o.provider; updateModelList(); }
+    }
+    if (o.model) {
+      const pill = Array.from(document.querySelectorAll('.pill')).find(p => p.dataset.id === o.model);
+      if (pill) selectModel(pill);
+    }
+    Object.keys(o.sliders || {}).forEach(id => {
+      const e = document.getElementById(id);
+      if (e) { e.value = o.sliders[id]; e.dispatchEvent(new Event('input')); } // updates the label too
+    });
+    Object.keys(o.toggles || {}).forEach(id => {
+      const e = document.getElementById(id);
+      if (e) e.classList.toggle('on', !!o.toggles[id]);
+    });
+    if (o.customPrompt != null) { const cp = document.getElementById('customPromptSel'); if (cp) cp.selectedIndex = o.customPrompt; }
+    if (o.ext) { const pill = document.querySelector('.ext-pill[data-ext="' + o.ext + '"]'); if (pill) selectExt(pill); }
+    if (o.platform) {
+      const tab = Array.from(document.querySelectorAll('.ptab')).find(t => (t.getAttribute('onclick') || '').includes("'" + o.platform + "'"));
+      if (tab) setTab(tab, o.platform);
+    }
+  } catch(e) { console.warn('restore settings failed', e); }
+}
+(function restoreUISettings() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(UI_SETTINGS_KEY) || 'null'); } catch(e) {}
+  if (saved) applyUISettings(saved);
+  else _idbGet(UI_SETTINGS_KEY).then(raw => { try { if (raw) applyUISettings(JSON.parse(raw)); } catch(e) {} });
+  // any change/click in the sidebar or settings popup is saved automatically
+  const auto = ev => { if (ev.target.closest && ev.target.closest('.sidebar, #settingsModalBg')) setTimeout(saveUISettings, 60); };
+  document.addEventListener('input', auto);
+  document.addEventListener('change', auto);
+  document.addEventListener('click', auto);
+  window.addEventListener('beforeunload', saveUISettings);
+})();
 
 function updateModelList() {
   const provider = document.getElementById('aiProvider').value;
@@ -2997,7 +3251,7 @@ async function startGeneration() {
     renderPreviews();
     document.getElementById('fileCount').textContent = '0';
     showToast(`✦ সব ${results.length}টি সফল! CSV ডাউনলোড হচ্ছে…`);
-    setTimeout(() => { exportCSV(); }, 600);
+    setTimeout(() => { autoExportCSV(); }, 600);
   }
 }
 
@@ -3074,7 +3328,7 @@ async function autoRetryUntilDone(superRound) {
     renderPreviews();
     document.getElementById('fileCount').textContent = '0';
     showToast(`✅ সব সফল! CSV ডাউনলোড হচ্ছে…`);
-    setTimeout(() => { exportCSV(); }, 600);
+    setTimeout(() => { autoExportCSV(); }, 600);
   } else if (superRound < MAX_SUPER_ROUNDS) {
     // Still some left — keep trying silently in the background, longer pause this time
     setTimeout(() => autoRetryUntilDone(superRound + 1), 8000);
@@ -3131,10 +3385,18 @@ Never choose categories that are unrelated to the visible image.
 KEYWORD RULES:
 Generate exactly ${kwCount} highly relevant keywords, ranked in 3 tiers (most important first — order matters for search ranking):
 
-FIRST 5 KEYWORDS — SINGLE WORDS ONLY (mandatory):
-The first 5 keywords in the array MUST each be exactly ONE single word (no spaces, no phrases). Pick the 5 strongest, highest-search-volume single words for this exact file (main subject + most defining style/type). Example of correct format: "tshirt", "design", "vector", "typography", "graphic".
+KEYWORD UNIQUENESS RULE (VERY IMPORTANT):
+- Every keyword must appear ONLY ONCE — no duplicates, no repeated words in different case, no near-identical variants (e.g. "icon" and "icons").
+- If you run out of ideas, add NEW design-related keywords instead of repeating one, until you reach the exact count.
 
-TIER 1 — BEST keywords (first ~35%, starting right after the 5 single-word keywords):
+KEYWORD ORDER RULE (VERY IMPORTANT):
+- ALL single-word keywords (exactly ONE word, no spaces) must come FIRST in the keywords array — the first block of the list is single words only.
+- Only AFTER all single words, list the multi-word phrases (2-3 words).
+- Inside the single-word group, keep the tier order (Tier 1 best → Tier 2 supporting → Tier 3 specific).
+- Inside the phrase group, also keep the tier order (best → supporting → long-tail).
+
+
+TIER 1 — BEST keywords (first ~35%):
 The strongest, highest-search-volume terms — main subject + most defining style trait. These are what buyers type first.
 
 TIER 2 — MIDDLE/supporting keywords (next ~35%):
@@ -3142,11 +3404,6 @@ Style descriptors, visible colors, composition, mood, secondary visible elements
 
 TIER 3 — ACTUAL/long-tail keywords (final ~30%):
 Specific use-case phrases, niche/industry terms, 2-3 word descriptive combinations.
-
-SEO RULES (for best ranking and sales):
-- Use real buyer-search terms that are proven high-demand on stock marketplaces and match this exact file.
-- Cover different search angles: subject, style, design type, use case (print, POD, t-shirt, poster, branding, social media, web) and industry/niche, but only where genuinely relevant.
-- Each keyword must add new search value — no synonyms stacked for the sake of volume.
 
 STRICTLY AVOID:
 - Brand names
@@ -3175,7 +3432,7 @@ Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
 {
   "title": "title here",
   "description": "description here",
-  "keywords": ["single-word1", "single-word2", "single-word3", "single-word4", "single-word5", "keyword6", "...", "keyword${kwCount}"],
+  "keywords": ["keyword1", "keyword2", "...", "keyword${kwCount}"],
   "category": "Category Name",
   "category_number": 1,
   "recreation_prompt": "detailed AI image generation prompt to recreate this exact image"
@@ -3234,10 +3491,7 @@ KEYWORD RULES — 3-TIER RANKING STRUCTURE (exactly ${kwCount} keywords):
 ═══════════════════════════════
 Every keyword must be visible, relevant, or directly inferable from the image. This is the MOST IMPORTANT ranking factor — order matters because stock platforms weight earlier keywords higher.
 
-**FIRST 5 KEYWORDS — SINGLE WORDS ONLY (mandatory):**
-The first 5 keywords in the array MUST each be exactly ONE single word (no spaces, no phrases). Choose the 5 strongest, highest-search-volume single words for this exact file (main subject + most defining style/type). Example of correct format: "tshirt", "design", "vector", "typography", "graphic".
-
-**TIER 1 — BEST/CORE keywords (first ~35% of ${kwCount}, starting right after the 5 single-word keywords):**
+**TIER 1 — BEST/CORE keywords (first ~35% of ${kwCount}):**
 The absolute highest-value, highest-search-volume terms a buyer would type FIRST when looking for this exact asset. Main subject name, primary style, and the single most defining characteristic. These must be the strongest possible match to real buyer search queries.
 
 **TIER 2 — MIDDLE/SUPPORTING keywords (next ~35% of ${kwCount}):**
@@ -3246,14 +3500,22 @@ Related style descriptors, color names (only visible colors), composition terms,
 **TIER 3 — ACTUAL/LONG-TAIL keywords (final ~30% of ${kwCount}):**
 Specific use-case phrases, industry/niche terms, longer descriptive combinations (2-3 word phrases), and highly specific details that a buyer with a precise need would search for. These capture niche, lower-competition searches that convert well.
 
+KEYWORD UNIQUENESS RULE (VERY IMPORTANT):
+- Every keyword must appear ONLY ONCE — no duplicates, no repeated words in different case, no near-identical variants (e.g. "icon" and "icons").
+- If you run out of ideas, add NEW design-related keywords instead of repeating one, until you reach the exact count.
+
+KEYWORD ORDER RULE (VERY IMPORTANT):
+- ALL single-word keywords (exactly ONE word, no spaces) must come FIRST in the keywords array — the first block of the list is single words only.
+- Only AFTER all single words, list the multi-word phrases (2-3 words).
+- Inside the single-word group, keep the tier order (Tier 1 best → Tier 2 supporting → Tier 3 specific).
+- Inside the phrase group, also keep the tier order (best → supporting → long-tail).
+
 Strict keyword requirements:
 - No duplicates (case-insensitive)
 - No brand names, no celebrity names, no trademarked terms
 - No colors, objects, or styles that are NOT visible in the image
 - No spam, no misleading or unrelated terms
-- The FIRST 5 keywords must be single words; after those, use single words OR short natural phrases (2-3 words) — whatever best matches real search behavior
-- SEO FOCUS: use real, high-demand buyer search terms that fit this exact file; cover different search angles (subject, style, design type, use case such as print / POD / t-shirt / poster / branding / social media / web, and niche/industry) so the file can rank for as many relevant searches as possible
-- Every keyword must add new search value — no filler synonyms
+- Single words OR short natural phrases (2-3 words) — whatever best matches real search behavior
 - Every single keyword should be something this exact file could legitimately rank for
 
 ═══════════════════════════════
@@ -3272,7 +3534,7 @@ Return ONLY this exact valid JSON — no markdown, no explanation, nothing else:
 {
   "title": "title here",
   "description": "description here",
-  "keywords": ["single-word1", "single-word2", "single-word3", "single-word4", "single-word5", "tier1-keyword6", "...", "tier3-last-keyword"],
+  "keywords": ["tier1-keyword1", "tier1-keyword2", "...", "tier3-last-keyword"],
   "category": "Category Name",
   "category_number": 1,
   "recreation_prompt": "detailed AI image generation prompt to recreate this exact image"
@@ -3294,7 +3556,8 @@ function getActiveKeyIndex(provider) {
 }
 function setActiveKeyIndex(provider, idx) {
   apiKeyIndex[provider] = idx;
-  localStorage.setItem('robig_key_index', JSON.stringify(apiKeyIndex));
+  try { localStorage.setItem('robig_key_index', JSON.stringify(apiKeyIndex)); } catch(e) {}
+  _idbSet('robig_key_index', JSON.stringify(apiKeyIndex));
 }
 function isRateLimitOrQuotaError(err) {
   const msg = (err && err.message ? String(err.message) : '').toLowerCase();
@@ -3311,7 +3574,39 @@ function isRateLimitOrQuotaError(err) {
 // times — so a temporary limit on all keys still resolves into a success
 // instead of an error, as long as at least one key is valid.
 const KEY_ROTATION_MAX_ROUNDS = 8;
+// Wrapper: removes duplicate keywords, then asks the AI for NEW design-related keywords to refill the removed slots
 async function callAIWithKeyRotation(provider, base64, mimeType, prompt, textContext) {
+  const metadata = await _callAIRotating(provider, base64, mimeType, prompt, textContext);
+  try {
+    const m = prompt.match(/exactly (\d+)(?: highly relevant)? keywords/i);
+    const target = m ? parseInt(m[1], 10) : 0;
+    if (!target || !metadata || !metadata.keywords) return metadata;
+    const rawCount = Array.isArray(metadata.keywords) ? metadata.keywords.length : 0;
+    let kws = reorderSingleKeywordsFirst(metadata.keywords) || [];
+    for (let tries = 0; tries < 2 && kws.length < target; tries++) {
+      const need = target - kws.length;
+      const topUpPrompt = `You are adding keywords for a stock-marketplace design file (look at the file/context provided).
+These keywords are ALREADY used — do NOT repeat them or give near-identical versions:
+${JSON.stringify(kws)}
+
+Give exactly ${need} NEW, different keywords that are closely related to this design (subject, style, usage, concept, visible elements, buyer search terms).
+Rules: every keyword unique (case-insensitive), no brand/celebrity/trademark names, nothing that is not visible or relevant, single words or short phrases (2-3 words).
+Return ONLY valid JSON, no markdown: {"keywords": ["...", "..."]}`;
+      let extra;
+      try { extra = await _callAIRotating(provider, base64, mimeType, topUpPrompt, textContext); }
+      catch (e) { break; }
+      if (!extra || !extra.keywords) break;
+      const merged = reorderSingleKeywordsFirst([].concat(kws, extra.keywords));
+      if (merged.length <= kws.length) break; // nothing new came back
+      kws = merged;
+    }
+    if (kws.length > target) kws = kws.slice(0, target);
+    metadata.keywords = kws;
+  } catch (e) {}
+  return metadata;
+}
+
+async function _callAIRotating(provider, base64, mimeType, prompt, textContext) {
   const keysArr = getKeysArr(provider);
   if (keysArr.length === 0) throw new Error('No API key set for ' + provider);
   let lastErr = null;
@@ -3562,27 +3857,36 @@ async function callGrok(apiKey, base64, mimeType, prompt, model) {
   return parseJSON(data.choices?.[0]?.message?.content || '');
 }
 
-// Make sure the FIRST 5 keywords are single words (rest keep their original order)
-function enforceSingleWordFirst5(obj) {
-  try {
-    if (!obj || !Array.isArray(obj.keywords) || obj.keywords.length < 2) return obj;
-    const kws = obj.keywords.map(k => String(k).trim()).filter(Boolean);
-    const isSingle = k => !/\s/.test(k);
-    const singles = kws.filter(isSingle).slice(0, 5);
-    const rest = kws.filter(k => !singles.includes(k));
-    obj.keywords = singles.concat(rest);
-  } catch (e) {}
-  return obj;
+// Single-word keywords go FIRST; multi-word phrases follow.
+// Inside each group the original AI order (Tier 1 → Tier 2 → Tier 3) is kept exactly as is.
+function reorderSingleKeywordsFirst(kws) {
+  if (typeof kws === 'string') kws = kws.split(/[,\n;]+/);
+  if (!Array.isArray(kws)) return kws;
+  const seen = new Set();
+  const clean = [];
+  kws.forEach(k => {
+    const t = String(k).replace(/\s+/g, ' ').trim();
+    if (!t) return;
+    const id = t.toLowerCase().replace(/[-_]+/g, ' ').replace(/[^\p{L}\p{N} ]/gu, '').trim();
+    if (!id || seen.has(id)) return;   // duplicate keyword → keep only the first one
+    seen.add(id);
+    clean.push(t);
+  });
+  const singles = clean.filter(k => !/\s/.test(k));
+  const phrases = clean.filter(k => /\s/.test(k));
+  return singles.concat(phrases);
 }
-
 function parseJSON(text) {
   const clean = text.replace(/```json|```/g, '').trim();
-  try { return enforceSingleWordFirst5(JSON.parse(clean)); }
+  let obj;
+  try { obj = JSON.parse(clean); }
   catch {
     const match = clean.match(/\{[\s\S]*\}/);
-    if (match) return enforceSingleWordFirst5(JSON.parse(match[0]));
-    throw new Error('Failed to parse AI response as JSON');
+    if (match) obj = JSON.parse(match[0]);
+    else throw new Error('Failed to parse AI response as JSON');
   }
+  if (obj && obj.keywords) obj.keywords = reorderSingleKeywordsFirst(obj.keywords);
+  return obj;
 }
 
 // ===== RENDER RESULT =====
@@ -3602,6 +3906,7 @@ function renderResult(item, idx) {
   const imgSrc = item.previewSrc
     ? item.previewSrc
     : (item.base64 && item.mimeType && !isRawVector ? `data:${item.mimeType};base64,${item.base64}` : '');
+  if (md.keywords && !md.error) md.keywords = reorderSingleKeywordsFirst(md.keywords);
   const kws = Array.isArray(md.keywords) ? md.keywords : [];
   const catName = md.category || '';
   const catNum  = md.category_number || '';
@@ -3836,7 +4141,7 @@ function findAndReplaceAll() {
           newKws.push(k);
         }
       });
-      if (changed) r.metadata.keywords = newKws;
+      if (changed) r.metadata.keywords = reorderSingleKeywordsFirst(newKws);
     }
 
     if (scope === 'title' || scope === 'all') {
@@ -4021,6 +4326,12 @@ function cleanVecteezyFilename(name, usedNames) {
 
 
 // ===== EXPORT CSV =====
+// Called automatically when generation finishes — respects the "Auto Download CSV" toggle
+function autoExportCSV() {
+  const t = document.getElementById('csvToggle');
+  if (t && !t.classList.contains('on')) { showToast('✅ সব সফল! (Auto Download বন্ধ আছে — "Export CSV" চাপুন)'); return; }
+  exportCSV();
+}
 function exportCSV() {
   if (results.length === 0) { showToast('⚠️ No results to export'); return; }
   const csv = buildCSV();
@@ -4193,6 +4504,77 @@ function openModal() {
   updateModalKey();
 }
 function closeModal() { document.getElementById('modalBg').classList.remove('show'); }
+
+// ===== API KEY CREATE BUTTON + STEP-BY-STEP GUIDE =====
+const KEY_GUIDES = {
+  gemini: {
+    name: 'Google AI Studio', url: 'https://aistudio.google.com/apikey',
+    steps: [
+      'উপরের নীল <b>"API Key তৈরি করুন"</b> বাটনে চাপুন — Google AI Studio নতুন ট্যাবে খুলবে।',
+      'আপনার <b>Google (Gmail) অ্যাকাউন্ট</b> দিয়ে Sign in করুন।',
+      'প্রথমবার হলে Terms of Service আসবে — <b>Accept / Agree</b> চাপুন।',
+      '<b>"Create API key"</b> বাটনে চাপুন। (না দেখলে বাম মেনু থেকে <b>"Get API key"</b> এ যান।)',
+      'প্রজেক্ট সিলেক্ট করতে বললে একটা বেছে নিন, অথবা <b>"Create API key in new project"</b> চাপুন।',
+      'Key তৈরি হলে সেটার পাশের <b>Copy আইকনে</b> চাপুন (key দেখতে AIza… দিয়ে শুরু হয়)।',
+      'এই পেজে ফিরে এসে <b>"API KEY"</b> ঘরে পেস্ট (Ctrl+V) করুন।',
+      '<b>"➕ এই key-টা list-এ যুক্ত করো"</b> বাটনে চাপুন — key নিচে Saved Keys-এ জমা হবে।',
+      '<b>"🧪 Test Active Key"</b> চাপুন — ✅ এলে key ঠিক আছে, কাজ শুরু করতে পারেন।'
+    ],
+    note: '💡 বেশি কাজ করতে চাইলে আলাদা আলাদা প্রজেক্ট/অ্যাকাউন্টে একাধিক key বানিয়ে সবগুলো এখানে যুক্ত করুন — একটার limit শেষ হলে নিজে নিজে পরের key-তে চলে যাবে। Key কারও সাথে শেয়ার করবেন না।'
+  },
+  openai: {
+    name: 'OpenAI Platform', url: 'https://platform.openai.com/api-keys',
+    steps: [
+      'উপরের <b>"API Key তৈরি করুন"</b> বাটনে চাপুন — OpenAI Platform খুলবে।',
+      'OpenAI অ্যাকাউন্টে Sign in করুন (না থাকলে Sign up করুন)।',
+      '<b>"Create new secret key"</b> বাটনে চাপুন, একটা নাম দিন।',
+      'Key তৈরি হলে <b>এখনই Copy করুন</b> — পরে আর পুরোটা দেখা যাবে না (sk-… দিয়ে শুরু)।',
+      'এই পেজে "API KEY" ঘরে পেস্ট করে <b>"➕ list-এ যুক্ত করো"</b> চাপুন, তারপর <b>Test Active Key</b> দিন।'
+    ],
+    note: '💡 OpenAI API ব্যবহার করতে Billing-এ ক্রেডিট যোগ করা থাকতে হয়।'
+  },
+  openrouter: {
+    name: 'OpenRouter', url: 'https://openrouter.ai/keys',
+    steps: [
+      'উপরের <b>"API Key তৈরি করুন"</b> বাটনে চাপুন — OpenRouter Keys পেজ খুলবে।',
+      'Sign in করুন (Google/GitHub দিয়েও হয়)।',
+      '<b>"Create Key"</b> বাটনে চাপুন, নাম দিন।',
+      'তৈরি হওয়া key <b>Copy</b> করুন (sk-or-… দিয়ে শুরু)।',
+      'এই পেজে পেস্ট করে <b>"➕ list-এ যুক্ত করো"</b> চাপুন, তারপর <b>Test Active Key</b> দিন।'
+    ],
+    note: '💡 কিছু মডেল ফ্রি পাওয়া যায়; বাকিগুলোর জন্য OpenRouter-এ ক্রেডিট লাগে।'
+  },
+  grok: {
+    name: 'xAI Console', url: 'https://console.x.ai',
+    steps: [
+      'উপরের <b>"API Key তৈরি করুন"</b> বাটনে চাপুন — xAI Console খুলবে।',
+      'Sign in করুন।',
+      'বাম মেনু থেকে <b>"API Keys"</b> এ যান, তারপর <b>"Create API key"</b> চাপুন।',
+      'তৈরি হওয়া key <b>Copy</b> করুন (পরে আর পুরোটা দেখা যায় না)।',
+      'এই পেজে পেস্ট করে <b>"➕ list-এ যুক্ত করো"</b> চাপুন, তারপর <b>Test Active Key</b> দিন।'
+    ],
+    note: '💡 xAI API ব্যবহার করতে অ্যাকাউন্টে ক্রেডিট থাকতে হতে পারে।'
+  }
+};
+function updateKeyGuide() {
+  const sel = document.getElementById('modalProvider');
+  const g = KEY_GUIDES[sel ? sel.value : 'gemini'] || KEY_GUIDES.gemini;
+  const btn = document.getElementById('createKeyBtn');
+  if (btn) btn.textContent = '🆕 API Key তৈরি করুন (' + g.name + ')';
+  const ol = document.getElementById('keyGuideSteps');
+  if (ol) ol.innerHTML = g.steps.map(t => '<li style="margin-bottom:4px;">' + t + '</li>').join('');
+  const note = document.getElementById('keyGuideNote');
+  if (note) note.textContent = g.note;
+}
+function openCreateKeyPage() {
+  const sel = document.getElementById('modalProvider');
+  const g = KEY_GUIDES[sel ? sel.value : 'gemini'] || KEY_GUIDES.gemini;
+  window.open(g.url, '_blank', 'noopener');
+  showToast('🔗 ' + g.name + ' নতুন ট্যাবে খুলেছে — নিচের গাইড দেখে key বানান');
+}
+(function () { const _open = openModal; openModal = function () { _open.apply(this, arguments); updateKeyGuide(); }; })();
+updateKeyGuide();
+
 function updateModalKey() {
   document.getElementById('apiKeyInput').value = '';
   renderSavedKeysList();
@@ -4232,7 +4614,7 @@ function addKeyToList() {
   if (keysArr.includes(v)) { showToast('⚠️ এই key আগে থেকেই আছে'); return; }
   keysArr.push(v);
   apiKeys[p] = keysArr;
-  localStorage.setItem('robig_keys', JSON.stringify(apiKeys));
+  persistKeys();
   input.value = '';
   renderSavedKeysList();
   showToast(`✅ Key যুক্ত হয়েছে! মোট ${keysArr.length}টি`);
@@ -4246,7 +4628,7 @@ function deleteKey(p, idx) {
   const keysArr = getKeysArr(p);
   keysArr.splice(idx, 1);
   apiKeys[p] = keysArr;
-  localStorage.setItem('robig_keys', JSON.stringify(apiKeys));
+  persistKeys();
   const activeIdx = getActiveKeyIndex(p);
   if (activeIdx >= keysArr.length) setActiveKeyIndex(p, 0);
   renderSavedKeysList();
@@ -4336,7 +4718,7 @@ async function retryFailed() {
     renderPreviews();
     document.getElementById('fileCount').textContent = '0';
     showToast(`✅ সব ${retried}টি সফল! CSV ডাউনলোড হচ্ছে…`);
-    setTimeout(() => { exportCSV(); }, 600);
+    setTimeout(() => { autoExportCSV(); }, 600);
   } else {
     const stillFailedNames = new Set(stillFailed.map(r => r.file.name + r.file.size));
     files = files.filter(f => stillFailedNames.has(f.name + f.size));
@@ -4346,7 +4728,7 @@ async function retryFailed() {
     setTimeout(() => autoRetryUntilDone(), 1500);
   }
 }
-function saveSettings() { showToast('💾 Settings saved!'); }
+function saveSettings() { saveUISettings(); showToast('💾 Settings saved! (পরেরবার ট্যাব খুললেই এগুলো থাকবে)'); }
 
 function fileToBase64(file) {
   return new Promise((res, rej) => {
@@ -4690,59 +5072,6 @@ function downloadAllGeneratedPrompts() {
     if (e.target === this) this.classList.remove('show');
   });
 });
-
-// ===== CUSTOM LOGO UPLOAD =====
-const LOGO_KEY = 'robig_custom_logo';
-const ORIGINAL_LOGO_HTML = {};
-function applyCustomLogo() {
-  let data = null;
-  try { data = localStorage.getItem(LOGO_KEY); } catch (e) {}
-  document.querySelectorAll('.logo').forEach((el, i) => {
-    if (!el.dataset.logoId) el.dataset.logoId = 'L' + i;
-    const id = el.dataset.logoId;
-    if (!(id in ORIGINAL_LOGO_HTML)) ORIGINAL_LOGO_HTML[id] = el.innerHTML;
-    if (data) {
-      const sub = el.querySelector('span');
-      el.innerHTML = '<img class="logo-img" src="' + data + '" alt="Logo">' + (sub ? sub.outerHTML : '');
-      el.classList.add('has-img');
-    } else {
-      el.innerHTML = ORIGINAL_LOGO_HTML[id];
-      el.classList.remove('has-img');
-    }
-  });
-  const rb = document.getElementById('logoRemoveBtn');
-  if (rb) rb.style.display = data ? '' : 'none';
-}
-function handleLogoUpload(input) {
-  const file = input.files && input.files[0];
-  if (!file) return;
-  if (!file.type.startsWith('image/')) { showToast('⚠️ শুধু image file দিন'); input.value = ''; return; }
-  const reader = new FileReader();
-  reader.onload = e => {
-    const img = new Image();
-    img.onload = () => {
-      const maxH = 160, scale = Math.min(1, maxH / img.height);
-      const c = document.createElement('canvas');
-      c.width = Math.max(1, Math.round(img.width * scale));
-      c.height = Math.max(1, Math.round(img.height * scale));
-      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-      const dataUrl = c.toDataURL('image/png');
-      try { localStorage.setItem(LOGO_KEY, dataUrl); showToast('✅ Logo সেট হয়েছে'); }
-      catch (err) { showToast('⚠️ Logo save করা যায়নি (ছোট image দিন)'); }
-      applyCustomLogo();
-    };
-    img.onerror = () => showToast('⚠️ Image পড়া যায়নি');
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-  input.value = '';
-}
-function removeCustomLogo() {
-  try { localStorage.removeItem(LOGO_KEY); } catch (e) {}
-  applyCustomLogo();
-  showToast('🗑 Logo মুছে ফেলা হয়েছে');
-}
-applyCustomLogo();
 </script>
 </body>
 </html>
