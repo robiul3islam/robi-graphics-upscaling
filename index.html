@@ -1474,7 +1474,9 @@ async function gistFetch(method, gistId, token, body) {
   const res = await fetch(url, opts);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `HTTP ${res.status}`);
+    const ex = new Error(err.message || `HTTP ${res.status}`);
+    ex.status = res.status;
+    throw ex;
   }
   return res.json();
 }
@@ -1707,7 +1709,7 @@ async function readAdminLock(gid) {
     gist = await gistFetch('GET', gid, cfg.token);
   } else {
     const res = await fetch(`https://api.github.com/gists/${gid}?t=${Date.now()}`, { headers: { 'Accept': 'application/vnd.github+json' }, cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) { const ex = new Error('HTTP ' + res.status); ex.status = res.status; throw ex; }
     gist = await res.json();
   }
   const f = gist.files && gist.files[ADMIN_LOCK_FILE];
@@ -1733,9 +1735,12 @@ async function acquireAdminLock() {
   let lock;
   try { lock = await readAdminLock(gid); }
   catch (e) {
-    // offline: only a device that was approved before may continue
+    // Gist deleted / wrong ID (404) → no lock exists anywhere yet, so the owner may log in and then set up a Gist
+    if (e.status === 404) return { ok: true, bootstrap: true };
+    // temporary problem (offline / rate-limit): only a device approved before may continue
     if (localStorage.getItem('robig_admin_ok_gist') === gid) return { ok: true, offline: true };
-    return { ok: false, msg: '❌ Gist-এ পৌঁছানো যাচ্ছে না (ইন্টারনেট/Gist ID চেক করুন)। Admin লগইন করা গেল না।' };
+    const why = e.status ? ('GitHub error ' + e.status + (e.status === 403 ? ' — rate limit, কিছুক্ষণ পর আবার চেষ্টা করুন' : '')) : 'ইন্টারনেট সংযোগ নেই';
+    return { ok: false, needSetup: true, msg: '❌ Admin lock যাচাই করা যায়নি (' + why + ')। ইন্টারনেট চেক করে আবার চেষ্টা করুন, অথবা নিচের বাটনে Token দিয়ে Gist connect করুন।' };
   }
   if (lock && lock.deviceId === me) { localStorage.setItem('robig_admin_ok_gist', gid); return { ok: true }; }
   if (!lock) {
@@ -1804,7 +1809,7 @@ async function tryAdminLogin() {
     document.getElementById('accessGateOverlay').style.display = 'none';
     document.body.style.overflow = '';
     document.querySelectorAll('.admin-only').forEach(el => el.style.display = '');
-    showToast(lockRes.moved ? '🛡️ Admin এই ডিভাইসে সরানো হয়েছে!' : '🛡️ Admin হিসেবে লগইন হয়েছে! (শুধু এই ডিভাইসেই Admin চলবে)');
+    showToast(lockRes.bootstrap ? '⚠️ Gist পাওয়া যায়নি — Admin Panel থেকে "Setup Gist" করুন, তারপর শুধু এই ডিভাইসই Admin থাকবে' : (lockRes.moved ? '🛡️ Admin এই ডিভাইসে সরানো হয়েছে!' : '🛡️ Admin হিসেবে লগইন হয়েছে! (শুধু এই ডিভাইসেই Admin চলবে)'));
     openAdminPanel();
   } else {
     errEl.textContent = '❌ ভুল password।';
@@ -1816,6 +1821,11 @@ function isAdminSession() {
   return localStorage.getItem('robig_admin_session') === 'true';
 }
 
+function adminLogoutLocalOnly() {
+  localStorage.removeItem('robig_admin_session');
+  document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+  document.getElementById('adminPanelModalBg').classList.remove('show');
+}
 async function adminLogout() {
   if (adminHasToken(effectiveGistId()) && confirm('Logout-এর সাথে Admin lock-ও ছেড়ে দেবেন?\n\nOK = অন্য ডিভাইস থেকে Admin লগইন করা যাবে\nCancel = Admin শুধু এই ডিভাইসেই থাকবে (শুধু logout হবে)')) {
     const done = await releaseAdminLock();
@@ -1958,6 +1968,13 @@ async function saveGistConfig(forceNew) {
     showGistInfo(cfg.gistId);
     updateGistStatusUI();
     syncFromGist(false);
+    if (isAdminSession()) {
+      try {
+        const r = await acquireAdminLock();
+        showToast(r.ok ? '🔒 এই ডিভাইসই এখন একমাত্র Admin ডিভাইস' : r.msg);
+        if (!r.ok) adminLogoutLocalOnly();
+      } catch (e) {}
+    }
   } catch(e) {
     errEl.textContent = `❌ Error: ${e.message}`;
     errEl.style.display = 'block';
