@@ -1243,6 +1243,7 @@
     <div class="results-header" style="display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px;">
       <h3 style="color:var(--accent2);">GENERATED PROMPTS <span class="results-count" id="promptResultCount">0</span></h3>
       <button class="btn btn-export" id="dlPromptResultsBtn" onclick="downloadAllGeneratedPrompts()" style="display:none;font-size:13px;padding:10px 16px;">📝 Download All Prompts (.txt)</button>
+      <button class="btn btn-export" id="dlPromptResultsCsvBtn" onclick="downloadAllGeneratedPromptsCSV()" style="display:none;font-size:13px;padding:10px 16px;">📊 Download All Prompts (.csv)</button>
     </div>
 
     <div class="result-list" id="promptResultList">
@@ -5513,7 +5514,7 @@ function clearPromptFiles() {
   renderPromptPreviews();
   document.getElementById('promptResultList').innerHTML = `<div class="empty" id="promptEmptyState"><div class="ei">✨</div><p>Design upload করুন — AI সেটা দেখে exact recreation prompt লিখে দেবে</p></div>`;
   document.getElementById('promptResultCount').textContent = '0';
-  document.getElementById('dlPromptResultsBtn').style.display = 'none';
+  setPromptDlBtns('none');
   showToast('🗑 Cleared');
 }
 
@@ -5614,7 +5615,7 @@ async function startPromptGeneration() {
   progressWrap.style.display = 'none';
   btn.disabled = false; btn.textContent = '✨ Generate Prompts';
   const successCount = promptResults.filter(r => !r.error).length;
-  if (successCount > 0) document.getElementById('dlPromptResultsBtn').style.display = 'flex';
+  if (successCount > 0) setPromptDlBtns('flex');
   showToast(`✅ ${successCount}/${total}টি prompt তৈরি হয়েছে!`);
 }
 
@@ -5664,11 +5665,29 @@ function deletePromptResult(idx) {
   list.innerHTML = '';
   if (promptResults.length === 0) {
     list.innerHTML = `<div class="empty" id="promptEmptyState"><div class="ei">✨</div><p>Design upload করুন — AI সেটা দেখে exact recreation prompt লিখে দেবে</p></div>`;
-    document.getElementById('dlPromptResultsBtn').style.display = 'none';
+    setPromptDlBtns('none');
   } else {
     promptResults.forEach((r, i) => renderPromptResult(r, i));
   }
   document.getElementById('promptResultCount').textContent = promptResults.length;
+}
+
+function setPromptDlBtns(d) {
+  ['dlPromptResultsBtn', 'dlPromptResultsCsvBtn'].forEach(id => { const b = document.getElementById(id); if (b) b.style.display = d; });
+}
+
+async function downloadAllGeneratedPromptsCSV() {
+  const ok = promptResults.filter(r => !r.error);
+  if (ok.length === 0) { showToast('⚠️ কোনো prompt নেই'); return; }
+  const head = ['No', 'File Name', 'Target Tool', 'Subject', 'Prompt', 'Negative Prompt', 'Style Notes'];
+  const rows = ok.map((r, i) => [
+    i + 1, r.file.name, r.targetTool || '', r.subjectSummary || '',
+    r.generatedPrompt || '', r.negativePrompt || '', r.styleNotes || ''
+  ].map(csvQ).join(','));
+  const csv = [head.map(csvQ).join(',')].concat(rows).join('\r\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const r = await saveOrDownload('robi-graphics-image-prompts.csv', blob);
+  showToast(savedMsg(r, ok.length + 'টি prompt-এর CSV'));
 }
 
 function downloadAllGeneratedPrompts() {
