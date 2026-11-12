@@ -679,6 +679,14 @@
   }
   body.theme-black header { background: rgba(0,0,0,0.98); }
 
+  .header-right .btn-users, .view-switch button { white-space: nowrap; }
+  @media (max-width: 1400px) and (min-width: 769px) {
+    header { padding-left: 14px; padding-right: 14px; gap: 8px; }
+    .header-right { gap: 6px; }
+    .header-right .btn-users, .header-right .btn-settings, .header-right .btn-api, .header-right .admin-only { padding: 8px 10px !important; font-size: 12px !important; letter-spacing: 0 !important; white-space: nowrap; }
+    .view-switch button { padding: 8px 10px; font-size: 12px; letter-spacing: 0; }
+    .logo span { display: none; }
+  }
   /* ===== MOBILE APP VIEW + TUTORIAL VIDEO ===== */
   .m-nav, .m-sheet-bg, .m-fab { display: none; }
   .yt-wrap { position: relative; width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
@@ -1323,6 +1331,18 @@
   .as-fmeta b{color:var(--text);font-weight:600;}
   .as-ffoot{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--border);padding-top:9px;margin-top:auto;font-size:13px;color:var(--text);}
   .as-ffoot span:last-child{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+  .as-ed{border:1px solid var(--border);border-radius:8px;background:var(--bg2);padding:0;}
+  .as-ed summary{cursor:pointer;padding:9px 11px;font-size:12px;font-weight:700;color:var(--accent);list-style:none;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .as-ed summary::-webkit-details-marker{display:none;}
+  .as-ed[open] summary{border-bottom:1px solid var(--border);}
+  .as-ed .as-edn{font-weight:600;color:var(--muted);font-size:11px;}
+  .as-ed .as-edbadge{background:rgba(0,255,136,.15);color:var(--green);border:1px solid rgba(0,255,136,.4);border-radius:5px;padding:1px 6px;font-size:10px;}
+  .as-ed label{display:block;font-size:11px;color:var(--muted);margin:9px 11px 4px;font-weight:600;}
+  .as-ed input.as-edt,.as-ed textarea.as-edk{width:calc(100% - 22px);margin:0 11px;box-sizing:border-box;background:var(--card);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 9px;font-size:13px;font-family:inherit;}
+  .as-ed textarea.as-edk{resize:vertical;min-height:90px;line-height:1.5;}
+  .as-ed .as-edbtn{display:flex;gap:6px;flex-wrap:wrap;padding:10px 11px 11px;}
+  .as-ed .as-edbtn button{flex:1;min-width:70px;padding:7px 8px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;}
+  .as-ed .as-edbtn button:first-child{background:var(--accent);color:#001018;border-color:var(--accent);}
   /* list view */
   .as-grid.as-list{grid-template-columns:1fr;}
   .as-grid.as-list .as-fcard{flex-direction:row;}
@@ -1443,6 +1463,7 @@
         <input type="text" id="asFilter" placeholder="🔍 Title / ID…" oninput="asRenderRows(true)">
         <div class="as-viewsw"><button class="active" id="asViewGrid" onclick="asSetView('grid')" title="Grid">▦</button><button id="asViewList" onclick="asSetView('list')" title="List">☰</button></div>
         <button class="btn btn-export" style="font-size:13px;padding:9px 14px;" onclick="asExportCSV()">⬇ CSV</button>
+        <button class="btn btn-export" style="font-size:13px;padding:9px 14px;" onclick="asExportMetaCSV()">📝 Title + Keywords CSV</button>
       </div>
     </div>
     <div class="as-grid" id="asGrid"></div>
@@ -4580,7 +4601,7 @@ function renderResult(item, idx) {
   const imgSrc = item.previewSrc
     ? item.previewSrc
     : (item.base64 && item.mimeType && !isRawVector ? `data:${item.mimeType};base64,${item.base64}` : '');
-  if (md.keywords && !md.error) md.keywords = reorderSingleKeywordsFirst(md.keywords);
+  if (md.keywords && !md.error && !md._kwEdited) md.keywords = reorderSingleKeywordsFirst(md.keywords);
   const kws = Array.isArray(md.keywords) ? md.keywords : [];
   const catName = md.category || '';
   const catNum  = md.category_number || '';
@@ -4612,7 +4633,7 @@ function renderResult(item, idx) {
     let cls = 'kw';
     if (isBannedKeyword(k)) cls += ' kw-banned';
     else if (dupSet.has(norm)) cls += ' kw-dup';
-    return `<span class="${cls}" title="${isBannedKeyword(k) ? 'Banned/risky word' : (dupSet.has(norm) ? 'Duplicate keyword' : '')}">${k}</span>`;
+    return `<span class="${cls}" title="${isBannedKeyword(k) ? 'Banned/risky word' : (dupSet.has(norm) ? 'Duplicate keyword' : '')}">${asEsc(k)}</span>`;
   }).join('');
 
   const card = document.createElement('div');
@@ -4639,7 +4660,7 @@ function renderResult(item, idx) {
         <span class="cat-badge">📂 ${catNum ? '#'+catNum+' · ' : ''}${catName}</span>
       </div>` : ''}
       <div class="result-field">
-        <div class="result-field-label">Keywords <button class="btn-icon-mini" onclick="copyField(${idx},'keywords')" title="Copy Keywords">📋</button></div>
+        <div class="result-field-label">Keywords <button class="btn-icon-mini" onclick="copyField(${idx},'keywords')" title="Copy Keywords">📋</button> <button class="btn-icon-mini" onclick="editKeywords(${idx})" title="Edit Keywords">✏️</button></div>
         <div class="keywords-wrap" id="kw-${idx}">${kwHtml}</div>
       </div>
       ${md.recreation_prompt ? `<div class="result-field" style="background:rgba(255,193,7,0.06);border:1px solid rgba(255,193,7,0.2);border-radius:8px;padding:10px;margin-top:4px;">
@@ -4673,9 +4694,51 @@ function saveEditedField(idx, field, el) {
   saveToHistory(results);
   showToast(`✏️ ${field.charAt(0).toUpperCase()+field.slice(1)} updated`);
   // Re-render to refresh char counts / warnings
+  rerenderResultInPlace(idx);
+}
+
+// card আগের জায়গাতেই থাকে (নিচে সরে যায় না)
+function rerenderResultInPlace(idx) {
+  const list = document.getElementById('resultList');
   const card = document.getElementById(`result-${idx}`);
+  const next = card ? card.nextSibling : null;
   if (card) card.remove();
   renderResult(results[idx], idx);
+  const nc = document.getElementById(`result-${idx}`);
+  if (nc && next && next.parentNode === list) list.insertBefore(nc, next);
+}
+
+// ===== KEYWORDS EDIT =====
+function parseKwList(t) {
+  const seen = new Set(), out = [];
+  String(t || '').split(/[,\n;]/).forEach(x => { x = x.trim(); const k = x.toLowerCase(); if (x && !seen.has(k)) { seen.add(k); out.push(x); } });
+  return out;
+}
+function editKeywords(idx) {
+  const md = results[idx] && results[idx].metadata; if (!md) return;
+  const wrap = document.getElementById('kw-' + idx); if (!wrap || wrap.querySelector('textarea')) return;
+  wrap.style.display = 'block';
+  wrap.innerHTML = '<textarea id="kwedit-' + idx + '" rows="6" oninput="kwEditCount(' + idx + ')" style="width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--accent);border-radius:8px;color:var(--text);padding:10px;font-size:13px;line-height:1.5;font-family:inherit;resize:vertical;">' + asEsc((md.keywords || []).join(', ')) + '</textarea>'
+    + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;">'
+    + '<span id="kwcnt-' + idx + '" style="font-size:12px;color:var(--muted);flex:1;min-width:120px;"></span>'
+    + '<button class="btn btn-generate" style="padding:7px 14px;font-size:12px;" onclick="saveKeywords(' + idx + ')">💾 Save</button>'
+    + '<button class="btn btn-export" style="padding:7px 14px;font-size:12px;" onclick="rerenderResultInPlace(' + idx + ')">✕ Cancel</button></div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-top:6px;">কমা দিয়ে আলাদা করুন। Save করলে একই keyword বাদ যায়, আর আপনার দেওয়া ক্রম ঠিক থাকে।</div>';
+  const ta = document.getElementById('kwedit-' + idx); kwEditCount(idx); ta.focus();
+}
+function kwEditCount(idx) {
+  const ta = document.getElementById('kwedit-' + idx), c = document.getElementById('kwcnt-' + idx);
+  if (ta && c) c.textContent = parseKwList(ta.value).length + ' keywords';
+}
+function saveKeywords(idx) {
+  const ta = document.getElementById('kwedit-' + idx);
+  if (!ta || !results[idx] || !results[idx].metadata) return;
+  const list = parseKwList(ta.value);
+  results[idx].metadata.keywords = list;
+  results[idx].metadata._kwEdited = true;
+  saveToHistory(results);
+  showToast('✏️ Keywords updated (' + list.length + ')');
+  rerenderResultInPlace(idx);
 }
 
 // ===== FILTER / SEARCH =====
@@ -6104,6 +6167,7 @@ function asRenderRows(reset) {
   }
   const slice = asView.slice(asShown, asShown + AS_PAGE);
   const html = slice.map(f => {
+    asApplyEdit(f);
     const title = String(f.title || '').trim();
     const g = f._lastGain;
     const gain = f.downloadsGained != null && f.downloadsGained > 0 ? f.downloadsGained : (g && g.to && (Date.now() - new Date(g.to)) < 864e5 ? g.n : 0);
@@ -6123,6 +6187,7 @@ function asRenderRows(reset) {
       + '<div class="as-srow up"><span>🕒 UPLOADED</span><b>' + asEsc(asAgo(f.createdAt)) + '</b></div>'
       + '<div class="as-fmeta">Views: <b>' + asNum(f.views) + '</b> · ' + asEsc(asDay(f.createdAt) || '—') + '</div>'
       + gainLine
+      + asEdHtml(f, title)
       + '<div class="as-ffoot"><span>👤 ' + asEsc(who) + '</span><span>' + asEsc(f.id) + '</span></div>'
       + '</div></div>';
   }).join('');
@@ -6133,10 +6198,84 @@ function asRenderRows(reset) {
   document.getElementById('asMoreBtn').style.display = asShown < asView.length ? 'flex' : 'none';
 }
 
+// ===== Title + Keywords দেখা, edit করা, CSV =====
+const AS_EDIT_KEY = 'robig_as_edits_v1';
+let asEdits = {}; try { asEdits = JSON.parse(localStorage.getItem(AS_EDIT_KEY) || '{}') || {}; } catch (e) {}
+function asEditsSave() { try { localStorage.setItem(AS_EDIT_KEY, JSON.stringify(asEdits)); } catch (e) {} }
+function asKwArr(f) {
+  const k = f.keywords != null ? f.keywords : f.tags;
+  if (k == null) return null;
+  if (Array.isArray(k)) return k.map(x => typeof x === 'string' ? x : ((x && (x.name || x.keyword || x.text)) || '')).map(x => String(x).trim()).filter(Boolean);
+  return String(k).split(/[,\n]/).map(x => x.trim()).filter(Boolean);
+}
+function asParseKw(t) {
+  const seen = new Set(), out = [];
+  String(t || '').split(/[,\n;]/).forEach(x => { x = x.trim(); const k = x.toLowerCase(); if (x && !seen.has(k)) { seen.add(k); out.push(x); } });
+  return out;
+}
+function asApplyEdit(f) {
+  if (f._orig === undefined) f._orig = { title: f.title || '', keywords: asKwArr(f) };
+  const e = asEdits[f.id];
+  if (e && !f._edited) { f.title = e.title; f.keywords = e.keywords; f._edited = true; }
+}
+function asEdSummary(f) {
+  const k = asKwArr(f);
+  return '✏️ Title & Keywords <span class="as-edn">' + (k ? k.length : 0) + ' keywords</span>' + (f._edited ? '<span class="as-edbadge">edited</span>' : '');
+}
+function asEdHtml(f, title) {
+  const k = asKwArr(f);
+  return '<details class="as-ed" data-id="' + asEsc(f.id) + '"><summary>' + asEdSummary(f) + '</summary>'
+    + '<label>Title</label><input class="as-edt" type="text" value="' + asEsc(title) + '">'
+    + '<label>Keywords (কমা দিয়ে আলাদা করুন)</label><textarea class="as-edk" rows="5">' + asEsc((k || []).join(', ')) + '</textarea>'
+    + (k === null ? '<div class="as-fmeta" style="margin:6px 11px 0;">Apify এই ফাইলের keyword দেয়নি। চাইলে নিজে লিখুন।</div>' : '')
+    + '<div class="as-edbtn"><button onclick="asSaveEdit(this)">💾 Save</button><button onclick="asCopyKw(this)">📋 Copy</button><button onclick="asResetEdit(this)">↺ Reset</button></div></details>';
+}
+function asEdCtx(btn) { const ed = btn.closest('.as-ed'); return { ed: ed, f: asFiles.find(x => String(x.id) === ed.dataset.id) }; }
+function asRefreshCard(ed, f) {
+  const card = ed.closest('.as-fcard');
+  card.querySelector('.as-ftitle').textContent = String(f.title || '').trim();
+  card.title = String(f.title || '').trim();
+  ed.querySelector('.as-edt').value = String(f.title || '').trim();
+  ed.querySelector('.as-edk').value = (asKwArr(f) || []).join(', ');
+  ed.querySelector('summary').innerHTML = asEdSummary(f);
+}
+function asSaveEdit(btn) {
+  const c = asEdCtx(btn); if (!c.f) return;
+  asApplyEdit(c.f);
+  const t = c.ed.querySelector('.as-edt').value.trim(), k = asParseKw(c.ed.querySelector('.as-edk').value);
+  c.f.title = t; c.f.keywords = k; c.f._edited = true;
+  asEdits[c.f.id] = { title: t, keywords: k }; asEditsSave();
+  asRefreshCard(c.ed, c.f);
+  showToast('💾 Save হয়েছে (' + k.length + ' keywords)');
+}
+function asResetEdit(btn) {
+  const c = asEdCtx(btn); if (!c.f || !c.f._orig) return;
+  c.f.title = c.f._orig.title; c.f.keywords = c.f._orig.keywords; c.f._edited = false;
+  delete asEdits[c.f.id]; asEditsSave();
+  asRefreshCard(c.ed, c.f);
+  showToast('↺ আগের অবস্থায় ফেরানো হয়েছে');
+}
+function asCopyKw(btn) {
+  const t = btn.closest('.as-ed').querySelector('.as-edk').value;
+  if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => showToast('📋 Keywords copy হয়েছে'), () => showToast('⚠️ Copy করা যায়নি'));
+}
+function asExportMetaCSV() {
+  if (!asFiles.length) { showToast('⚠️ কিছু export করার নেই'); return; }
+  asView.forEach(asApplyEdit);
+  const head = ['ID', 'Title', 'Keywords', 'Keyword Count', 'Edited', 'Type', 'Downloads', 'Uploaded', 'Creator', 'URL'];
+  const rows = asView.map(f => { const k = asKwArr(f) || []; return [f.id, String(f.title || '').trim(), k.join(', '), k.length, f._edited ? 'Yes' : 'No', f.mediaType || '', f.downloads || 0, String(f.createdAt || '').slice(0, 10), f.creatorName || '', f.url || ''].map(csvQ).join(','); });
+  const blob = new Blob(['\uFEFF' + [head.map(csvQ).join(',')].concat(rows).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = 'adobe-stock-title-keywords.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  showToast('📝 Title + Keywords CSV downloaded! (' + rows.length + 'টি ফাইল)');
+}
+
 function asExportCSV() {
   if (!asFiles.length) { showToast('⚠️ কিছু export করার নেই'); return; }
-  const head = ['ID', 'Title', 'Downloads', 'New Downloads', 'Views', 'Uploaded', 'Type', 'Creator ID', 'Creator', 'URL', 'Last Increase From', 'Last Increase To', 'Last Increase'];
-  const rows = asView.map(f => [f.id, String(f.title || '').trim(), f.downloads || 0, f.downloadsGained == null ? '' : f.downloadsGained, f.views || 0, String(f.createdAt || '').slice(0, 10), f.mediaType || '', f.creatorId || '', f.creatorName || '', f.url || '', f._lastGain ? asDay(f._lastGain.from) : '', f._lastGain ? asDay(f._lastGain.to) : '', f._lastGain ? f._lastGain.n : ''].map(csvQ).join(','));
+  const head = ['ID', 'Title', 'Downloads', 'New Downloads', 'Views', 'Uploaded', 'Type', 'Creator ID', 'Creator', 'URL', 'Last Increase From', 'Last Increase To', 'Last Increase', 'Keywords'];
+  const rows = asView.map(f => [f.id, String(f.title || '').trim(), f.downloads || 0, f.downloadsGained == null ? '' : f.downloadsGained, f.views || 0, String(f.createdAt || '').slice(0, 10), f.mediaType || '', f.creatorId || '', f.creatorName || '', f.url || '', f._lastGain ? asDay(f._lastGain.from) : '', f._lastGain ? asDay(f._lastGain.to) : '', f._lastGain ? f._lastGain.n : '', (asKwArr(f) || []).join(', ')].map(csvQ).join(','));
   const blob = new Blob(['\uFEFF' + [head.join(',')].concat(rows).join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
